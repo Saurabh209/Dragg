@@ -4,7 +4,7 @@ import Toolbar from './Toolbar';
 import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToast, forceViewOnly = false }) {
   const [boardName, setBoardName] = useState('');
