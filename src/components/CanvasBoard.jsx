@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import Toolbar from './Toolbar';
-import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -52,6 +52,9 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [codeOutput, setCodeOutput] = useState('');
   const [codeError, setCodeError] = useState(false);
 
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // Canvas Outline Sidebar state
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,6 +93,51 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   });
 
   const isViewOnly = forceViewOnly || (protectionMode !== 'none' && !localPassword);
+
+  // Fullscreen event listeners
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        !!(document.fullscreenElement ||
+           document.webkitFullscreenElement ||
+           document.mozFullScreenElement ||
+           document.msFullscreenElement)
+      );
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!isFullscreen) {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) { /* Safari */
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) { /* IE11 */
+        elem.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) { /* Safari */
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) { /* IE11 */
+        document.msExitFullscreen();
+      }
+    }
+  };
 
   // Load board details
   useEffect(() => {
@@ -1224,7 +1272,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   });
 
   return (
-    <div className={`board-workspace-wrapper ${isCodePanelOpen ? 'split-screen-active' : ''}`} style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div className={`board-workspace-wrapper ${isCodePanelOpen ? 'split-screen-active' : ''}`} style={{ display: 'flex', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
       
       <div 
         ref={containerRef}
@@ -1365,25 +1413,26 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       )}
 
       {/* Canvas Header */}
-      <div 
-        className="glass"
-        style={{
-          position: 'fixed',
-          top: '1.5rem',
-          left: '1.5rem',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1.2rem',
-          padding: '0.6rem 1.2rem',
-          borderRadius: '16px',
-          background: 'rgba(10, 10, 15, 0.6)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
-        }}
-      >
+      {!isFullscreen && (
+        <div 
+          className="glass canvas-header"
+          style={{
+            position: 'fixed',
+            top: '1.5rem',
+            left: '1.5rem',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.2rem',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '16px',
+            background: 'rgba(10, 10, 15, 0.6)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+          }}
+        >
         <button 
           className="board-card-delete-btn glass"
           style={{ padding: '0.6rem', borderRadius: '12px' }}
@@ -1413,7 +1462,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           title="Toggle Canvas Outline"
         >
           <List size={15} />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Outline</span>
+          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Outline</span>
         </button>
 
         <button 
@@ -1432,7 +1481,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           title="Bird's Eye View (Zoom Out to Fit All Cards)"
         >
           <Compass size={15} />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Bird's Eye</span>
+          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Bird's Eye</span>
         </button>
 
         <button 
@@ -1455,13 +1504,33 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           title="Toggle Code Sandbox Panel"
         >
           <Code2 size={15} />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Sandbox</span>
+          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Sandbox</span>
         </button>
+
+        <button 
+          className="board-card-delete-btn glass"
+          style={{ 
+            padding: '0.6rem 0.9rem', 
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: 'rgba(18, 18, 24, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            color: 'var(--color-text-main)'
+          }}
+          onClick={handleToggleFullscreen}
+          title="Enter Fullscreen"
+        >
+          <Maximize2 size={15} />
+          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Fullscreen</span>
+        </button>
+
         <input 
           type="text"
           value={boardName}
           onChange={(e) => setBoardName(e.target.value)}
-          className="modal-input"
+          className="modal-input canvas-title-input"
           readOnly={isViewOnly}
           style={{
             fontSize: '1.2rem',
@@ -1496,7 +1565,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               title="Board is locked for editing. Click to unlock."
             >
               <Lock size={12} color="var(--accent-rose)" />
-              <span>View Mode</span>
+              <span className="header-btn-text">View Mode</span>
             </button>
           ) : (
             <div
@@ -1515,11 +1584,42 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               title="Editing is unlocked."
             >
               <Unlock size={12} color="var(--accent-emerald)" />
-              <span>Edit Mode</span>
+              <span className="header-btn-text">Edit Mode</span>
             </div>
           )
         )}
       </div>
+    )}
+
+    {isFullscreen && (
+      <button
+        onClick={handleToggleFullscreen}
+        className="board-card-delete-btn glass"
+        style={{
+          position: 'fixed',
+          top: '1.5rem',
+          right: '1.5rem',
+          zIndex: 1000,
+          padding: '0.6rem 1.2rem',
+          borderRadius: '16px',
+          background: 'rgba(10, 10, 15, 0.7)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '0.85rem',
+          cursor: 'pointer',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <Minimize2 size={16} />
+        <span>Exit Fullscreen</span>
+      </button>
+    )}
 
       {/* Save Status Indicators & Manual Save Button */}
       {!isViewOnly && (
