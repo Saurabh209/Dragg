@@ -60,6 +60,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [searchQuery, setSearchQuery] = useState('');
   const [blinkingCardId, setBlinkingCardId] = useState(null);
 
+  // Card customization modal state
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [cardFeatures, setCardFeatures] = useState({
+    notes: true,
+    sketch: true,
+    attachments: true,
+    tags: true,
+    colorPalette: true,
+    completedStatus: true,
+    connectPorts: true
+  });
+
   // Keybindings from localStorage
   const [keybindings] = useState(() => {
     const saved = localStorage.getItem('dragg-keybindings');
@@ -684,14 +696,32 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     };
   }, []);
 
-  // Add standard card note
+  // Trigger card creation modal
   const handleAddCard = () => {
     if (isViewOnly) {
       showToast('Board is locked. Enter password to add cards.', 'error');
       return;
     }
-    const width = 250;
-    const height = 180;
+    setCardFeatures({
+      notes: true,             // by default enabled
+      sketch: false,
+      attachments: false,
+      tags: false,
+      colorPalette: true,      // by default enabled
+      completedStatus: true,   // by default enabled
+      connectPorts: true       // by default enabled
+    });
+    setShowAddCardModal(true);
+  };
+
+  // Add heading-only node
+  const handleAddHeadingCard = () => {
+    if (isViewOnly) {
+      showToast('Board is locked. Enter password to add cards.', 'error');
+      return;
+    }
+    const width = 200;
+    const height = 50;
     let spawnX = 150;
     let spawnY = 150;
 
@@ -708,16 +738,78 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       y: spawnY,
       width,
       height,
-      title: 'Untitled Note',
+      title: 'Heading',
       content: '',
       tags: [],
       color: 'slate',
       type: 'note',
       cardMode: 'notes',
+      features: {
+        notes: false,
+        sketch: false,
+        attachments: false,
+        tags: false,
+        colorPalette: false,
+        completedStatus: false,
+        connectPorts: true
+      }
     };
 
     setCards((prev) => [...prev, newCard]);
     setSelectedCardId(newCard.id);
+    showToast('Heading card added!');
+  };
+
+  // Perform card creation after features selection
+  const handleAddCardConfirm = () => {
+    const hasNotes = cardFeatures.notes;
+    const hasSketch = cardFeatures.sketch;
+    const hasAttachments = cardFeatures.attachments;
+    const hasTags = cardFeatures.tags;
+
+    const hasBodyContent = hasNotes || hasSketch || hasAttachments || hasTags;
+    
+    let width = 250;
+    let height = 180;
+
+    if (!hasBodyContent) {
+      width = 200;
+      height = 50;
+    }
+
+    let spawnX = 150;
+    let spawnY = 150;
+
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const centerCoords = screenToCanvas(rect.left + rect.width / 2 - (width * zoom) / 2, rect.top + rect.height / 2 - (height * zoom) / 2);
+      spawnX = centerCoords.x;
+      spawnY = centerCoords.y;
+    }
+
+    let cardMode = 'notes';
+    if (hasNotes) cardMode = 'notes';
+    else if (hasSketch) cardMode = 'sketch';
+    else if (hasAttachments) cardMode = 'attachments';
+
+    const newCard = {
+      id: Math.random().toString(36).substring(2, 11),
+      x: spawnX,
+      y: spawnY,
+      width,
+      height,
+      title: !hasBodyContent ? 'Heading' : 'Untitled Note',
+      content: '',
+      tags: [],
+      color: 'slate',
+      type: 'note',
+      cardMode,
+      features: { ...cardFeatures }
+    };
+
+    setCards((prev) => [...prev, newCard]);
+    setSelectedCardId(newCard.id);
+    setShowAddCardModal(false);
     showToast('Card added!');
   };
 
@@ -1418,14 +1510,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           className="glass canvas-header"
           style={{
             position: 'fixed',
-            top: '1.5rem',
-            left: '1.5rem',
+            top: '0.8rem',
+            left: '0.8rem',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
-            gap: '1.2rem',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '16px',
+            gap: '0.8rem',
+            padding: '0.4rem 0.8rem',
+            borderRadius: '10px',
             background: 'rgba(10, 10, 15, 0.6)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
@@ -1435,18 +1527,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         >
         <button 
           className="board-card-delete-btn glass"
-          style={{ padding: '0.6rem', borderRadius: '12px' }}
+          style={{ padding: '0.4rem', borderRadius: '8px' }}
           onClick={onBack}
           title="Back to Dashboard"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} />
         </button>
-
+ 
         <button 
           className={`board-card-delete-btn glass ${isOutlineOpen ? 'active' : ''}`}
           style={{ 
-            padding: '0.6rem 0.9rem', 
-            borderRadius: '12px',
+            padding: '0.4rem 0.7rem', 
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -1461,15 +1553,15 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           }}
           title="Toggle Canvas Outline"
         >
-          <List size={15} />
-          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Outline</span>
+          <List size={14} />
+          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Outline</span>
         </button>
-
+ 
         <button 
           className="board-card-delete-btn glass"
           style={{ 
-            padding: '0.6rem 0.9rem', 
-            borderRadius: '12px',
+            padding: '0.4rem 0.7rem', 
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -1480,15 +1572,15 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           onClick={handleBirdsEyeView}
           title="Bird's Eye View (Zoom Out to Fit All Cards)"
         >
-          <Compass size={15} />
-          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Bird's Eye</span>
+          <Compass size={14} />
+          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Bird's Eye</span>
         </button>
-
+ 
         <button 
           className={`board-card-delete-btn glass ${isCodePanelOpen ? 'active' : ''}`}
           style={{ 
-            padding: '0.6rem 0.9rem', 
-            borderRadius: '12px',
+            padding: '0.4rem 0.7rem', 
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -1503,15 +1595,15 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           }}
           title="Toggle Code Sandbox Panel"
         >
-          <Code2 size={15} />
-          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Sandbox</span>
+          <Code2 size={14} />
+          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Sandbox</span>
         </button>
-
+ 
         <button 
           className="board-card-delete-btn glass"
           style={{ 
-            padding: '0.6rem 0.9rem', 
-            borderRadius: '12px',
+            padding: '0.4rem 0.7rem', 
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -1522,10 +1614,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           onClick={handleToggleFullscreen}
           title="Enter Fullscreen"
         >
-          <Maximize2 size={15} />
-          <span className="header-btn-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Fullscreen</span>
+          <Maximize2 size={14} />
+          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Fullscreen</span>
         </button>
-
+ 
         <input 
           type="text"
           value={boardName}
@@ -1533,24 +1625,25 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           className="modal-input canvas-title-input"
           readOnly={isViewOnly}
           style={{
-            fontSize: '1.2rem',
+            fontSize: '0.95rem',
             fontWeight: 700,
             background: 'rgba(18, 18, 24, 0.4)',
             border: '1px solid rgba(255, 255, 255, 0.05)',
-            padding: '0.5rem 1rem',
+            padding: '0.3rem 0.6rem',
+            borderRadius: '8px',
             fontFamily: 'var(--font-heading)',
           }}
           title={isViewOnly ? 'Board is locked' : 'Click to rename Board'}
         />
-
+ 
         {protectionMode !== 'none' && (
           isViewOnly ? (
             <button
               className="board-card-delete-btn glass"
               style={{
-                padding: '0.5rem 0.8rem',
-                borderRadius: '12px',
-                fontSize: '0.8rem',
+                padding: '0.4rem 0.6rem',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
                 color: 'var(--accent-rose)',
                 display: 'flex',
                 alignItems: 'center',
@@ -1564,16 +1657,16 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               }}
               title="Board is locked for editing. Click to unlock."
             >
-              <Lock size={12} color="var(--accent-rose)" />
+              <Lock size={11} color="var(--accent-rose)" />
               <span className="header-btn-text">View Mode</span>
             </button>
           ) : (
             <div
               className="glass"
               style={{
-                padding: '0.5rem 0.8rem',
-                borderRadius: '12px',
-                fontSize: '0.8rem',
+                padding: '0.4rem 0.6rem',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
                 color: 'var(--accent-emerald)',
                 display: 'flex',
                 alignItems: 'center',
@@ -1583,7 +1676,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               }}
               title="Editing is unlocked."
             >
-              <Unlock size={12} color="var(--accent-emerald)" />
+              <Unlock size={11} color="var(--accent-emerald)" />
               <span className="header-btn-text">Edit Mode</span>
             </div>
           )
@@ -1794,6 +1887,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       {!isViewOnly && (
         <Toolbar
           onAddCard={handleAddCard}
+          onAddHeadingCard={handleAddHeadingCard}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onResetZoom={handleResetZoom}
@@ -1841,6 +1935,72 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                 onClick={handleClearBoard}
               >
                 Wipe Clean
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customize Card Features Modal */}
+      {showAddCardModal && (
+        <div className="modal-overlay" onClick={() => setShowAddCardModal(false)}>
+          <div 
+            className="modal-content glass"
+            onClick={(e) => e.stopPropagation()}
+            style={{ minWidth: '300px', maxWidth: '340px', padding: '1.2rem' }}
+          >
+            <h2 className="modal-title" style={{ color: 'var(--accent-cyan)', fontSize: '1.2rem', marginBottom: '0.4rem' }}>Configure Card Features</h2>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', lineHeight: '1.3', marginBottom: '0.8rem' }}>
+              Choose which sections to include in this card. (Text Field, Palette, checkmark status, and ports are included automatically).
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', margin: '0.8rem 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input 
+                  type="checkbox" 
+                  checked={cardFeatures.sketch} 
+                  onChange={(e) => setCardFeatures(prev => ({ ...prev, sketch: e.target.checked }))}
+                  style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: 'var(--accent-cyan)' }}
+                />
+                <span>🎨 Draw Canvas (Sketch)</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input 
+                  type="checkbox" 
+                  checked={cardFeatures.attachments} 
+                  onChange={(e) => setCardFeatures(prev => ({ ...prev, attachments: e.target.checked }))}
+                  style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: 'var(--accent-cyan)' }}
+                />
+                <span>📎 Attachment Files</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input 
+                  type="checkbox" 
+                  checked={cardFeatures.tags} 
+                  onChange={(e) => setCardFeatures(prev => ({ ...prev, tags: e.target.checked }))}
+                  style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: 'var(--accent-cyan)' }}
+                />
+                <span>🏷️ Tags Section</span>
+              </label>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '1rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={() => setShowAddCardModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                style={{ background: 'var(--accent-cyan)', boxShadow: '0 4px 14px rgba(6, 182, 212, 0.3)', color: '#000', fontWeight: 'bold' }}
+                onClick={handleAddCardConfirm}
+              >
+                Create Card
               </button>
             </div>
           </div>

@@ -1996,5 +1996,85 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Heading Card Custom Styling */
+.card-wrapper.is-heading-card .card-header {
+  border-bottom: none;
+  height: 100%;
+  padding: 0.4rem 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-wrapper.is-heading-card .card-title-input {
+  font-size: 0.9rem;
+  font-weight: 500;
+  width: 100%;
+}
+
+.card-wrapper.is-heading-card .card-action-btn.delete {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out, background 0.2s;
+  padding: 0.3rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.card-wrapper.is-heading-card:hover .card-action-btn.delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Hide connection nodes for heading cards unless hovered or selected */
+.card-wrapper.is-heading-card .connection-node {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.card-wrapper.is-heading-card:hover .connection-node,
+.card-wrapper.is-heading-card.selected .connection-node {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Entry Point Badge */
+.entry-point-badge {
+  background: var(--accent-rose);
+  color: #000 !important;
+  font-weight: 750;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 0.4rem;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+  user-select: none;
+}
+
+/* Entry Point Card Highlight Styling */
+.card-wrapper.is-start-node .card-content-container {
+  border-color: var(--accent-rose) !important;
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.35) !important;
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.16), rgba(18, 12, 16, 0.96)) !important; /* Premium subtle rose-tinted gradient */
+}
+
+/* Transition check for play icon color */
+.card-action-btn.start-node-btn.active svg {
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px var(--accent-rose));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px var(--accent-rose));
+  }
+}
+
 
 

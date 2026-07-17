@@ -11,11 +11,13 @@ import {
   Link, 
   Eraser,
   Image, 
-  Download 
+  Download,
+  Type
 } from 'lucide-react';
 
 function Toolbar({
   onAddCard,
+  onAddHeadingCard,
   onZoomIn,
   onZoomOut,
   onResetZoom,
@@ -118,6 +120,16 @@ function Toolbar({
           >
             <Plus size={18} color="var(--accent-cyan)" />
             <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Card</span>
+          </button>
+
+          <button 
+            className="toolbar-btn" 
+            onClick={onAddHeadingCard} 
+            title="Create Heading Node"
+            style={{ gap: '0.4rem', padding: '0.5rem 0.8rem', color: 'var(--color-text-main)' }}
+          >
+            <Type size={16} color="var(--accent-indigo)" />
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Heading</span>
           </button>
 
           <button 

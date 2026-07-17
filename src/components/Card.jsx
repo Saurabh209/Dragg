@@ -97,7 +97,26 @@ function Card({
   const lastCoordsRef = useRef({ x: 0, y: 0 });
 
   const [localCardMode, setLocalCardMode] = useState(null);
-  const activeMode = localCardMode || card.cardMode || 'notes';
+
+  const features = card.features || {
+    notes: true,
+    sketch: true,
+    attachments: true,
+    tags: true,
+    colorPalette: true,
+    completedStatus: true,
+    connectPorts: true
+  };
+  const isHeadingCard = !features.notes && !features.sketch && !features.attachments && !features.tags;
+  const hasBodyContent = !isHeadingCard;
+
+  const getInitialActiveMode = () => {
+    if (features.notes) return 'notes';
+    if (features.sketch) return 'sketch';
+    if (features.attachments) return 'attachments';
+    return 'notes';
+  };
+  const activeMode = localCardMode || card.cardMode || getInitialActiveMode();
 
   // Text Editor Selection & Formatting Helpers
   const saveSelection = () => {
@@ -510,6 +529,9 @@ function Card({
     e.stopPropagation();
     onSelect(card.id);
 
+    const minW = isHeadingCard ? 100 : MIN_WIDTH;
+    const minH = isHeadingCard ? 36 : MIN_HEIGHT;
+
     const startX = card.x;
     const startY = card.y;
     const startWidth = card.width || 250;
@@ -529,9 +551,9 @@ function Card({
 
       // Horizontal resizing logic
       if (direction.includes('r')) {
-        nextW = Math.max(MIN_WIDTH, startWidth + dx);
+        nextW = Math.max(minW, startWidth + dx);
       } else if (direction.includes('l')) {
-        const maxDx = startWidth - MIN_WIDTH;
+        const maxDx = startWidth - minW;
         const actualDx = Math.min(maxDx, dx);
         nextW = startWidth - actualDx;
         nextX = startX + actualDx;
@@ -539,9 +561,9 @@ function Card({
 
       // Vertical resizing logic
       if (direction.includes('b')) {
-        nextH = Math.max(MIN_HEIGHT, startHeight + dy);
+        nextH = Math.max(minH, startHeight + dy);
       } else if (direction.includes('t')) {
-        const maxDy = startHeight - MIN_HEIGHT;
+        const maxDy = startHeight - minH;
         const actualDy = Math.min(maxDy, dy);
         nextH = startHeight - actualDy;
         nextY = startY + actualDy;
@@ -843,7 +865,7 @@ function Card({
   return (
     <div
       ref={cardRef}
-      className={`card-wrapper ${currentThemeClass} ${isSelected ? 'selected' : ''} ${card.completed ? 'completed' : ''} ${isBlinking ? 'blinking' : ''}`}
+      className={`card-wrapper ${currentThemeClass} ${isSelected ? 'selected' : ''} ${card.completed ? 'completed' : ''} ${isBlinking ? 'blinking' : ''} ${isHeadingCard ? 'is-heading-card' : ''} ${hasBodyContent ? '' : 'no-body-content'} ${card.isStartNode ? 'is-start-node' : ''}`}
       style={{
         transform: `translate(${card.x}px, ${card.y}px)`,
         width: card.width || 250,
@@ -871,10 +893,14 @@ function Card({
             placeholder={isImageCard ? 'Image Note' : 'Untitled Note'}
             onClick={(e) => e.stopPropagation()}
             readOnly={isViewOnly}
+            style={isHeadingCard ? { width: 'calc(100% - 24px)' } : {}}
           />
+          {card.isStartNode && (
+            <span className="entry-point-badge">Entry Point</span>
+          )}
           <div className="card-actions-wrapper">
             {/* Tick Mark/Complete Button */}
-            {!isViewOnly && (
+            {!isViewOnly && !isHeadingCard && features.completedStatus && (
               <button
                 className={`card-action-btn checkmark-btn ${card.completed ? 'active' : ''}`}
                 onClick={(e) => {
@@ -887,7 +913,7 @@ function Card({
               </button>
             )}
             {/* Quick Connector Button */}
-            {!isViewOnly && (
+            {!isViewOnly && !isHeadingCard && features.connectPorts && (
               <button
                 className="card-action-btn"
                 onMouseDown={handleQuickConnectMouseDown}
@@ -896,13 +922,25 @@ function Card({
                 <Link2 size={14} color="var(--accent-cyan)" />
               </button>
             )}
-            {!isViewOnly && (
+            {!isViewOnly && !isHeadingCard && features.colorPalette && (
               <button
                 className="card-action-btn"
                 onClick={() => setShowColorPicker(!showColorPicker)}
                 title="Color Theme"
               >
                 <Palette size={14} />
+              </button>
+            )}
+            {!isViewOnly && !isHeadingCard && (
+              <button
+                className={`card-action-btn start-node-btn ${card.isStartNode ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdate(card.id, { isStartNode: !card.isStartNode });
+                }}
+                title={card.isStartNode ? "Remove Entry Point" : "Mark as Entry Point"}
+              >
+                <Play size={13} fill={card.isStartNode ? "var(--accent-rose)" : "none"} color={card.isStartNode ? "var(--accent-rose)" : "var(--color-text-muted)"} />
               </button>
             )}
             {!isViewOnly && (
@@ -947,35 +985,41 @@ function Card({
         )}
 
         {/* Tab Headers (Notes vs Code vs Sketch vs Files) - For standard note cards */}
-        {!isImageCard && (
+        {!isImageCard && !isHeadingCard && [features.notes, features.sketch, features.attachments].filter(Boolean).length > 1 && (
           <div className="card-tabs-header">
-            <button 
-              className={`card-tab-btn ${activeMode === 'notes' ? 'active' : ''}`}
-              onClick={() => {
-                setLocalCardMode('notes');
-                if (!isViewOnly) onUpdate(card.id, { cardMode: 'notes' });
-              }}
-            >
-              <FileText size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} /> Notes
-            </button>
-            <button 
-              className={`card-tab-btn ${activeMode === 'sketch' ? 'active' : ''}`}
-              onClick={() => {
-                setLocalCardMode('sketch');
-                if (!isViewOnly) onUpdate(card.id, { cardMode: 'sketch' });
-              }}
-            >
-              <Pencil size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} /> Sketch
-            </button>
-            <button 
-              className={`card-tab-btn ${activeMode === 'attachments' ? 'active' : ''}`}
-              onClick={() => {
-                setLocalCardMode('attachments');
-                if (!isViewOnly) onUpdate(card.id, { cardMode: 'attachments' });
-              }}
-            >
-              <Paperclip size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} /> Files
-            </button>
+            {features.notes && (
+              <button 
+                className={`card-tab-btn ${activeMode === 'notes' ? 'active' : ''}`}
+                onClick={() => {
+                  setLocalCardMode('notes');
+                  if (!isViewOnly) onUpdate(card.id, { cardMode: 'notes' });
+                }}
+              >
+                <FileText size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} /> Notes
+              </button>
+            )}
+            {features.sketch && (
+              <button 
+                className={`card-tab-btn ${activeMode === 'sketch' ? 'active' : ''}`}
+                onClick={() => {
+                  setLocalCardMode('sketch');
+                  if (!isViewOnly) onUpdate(card.id, { cardMode: 'sketch' });
+                }}
+              >
+                <Pencil size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} /> Sketch
+              </button>
+            )}
+            {features.attachments && (
+              <button 
+                className={`card-tab-btn ${activeMode === 'attachments' ? 'active' : ''}`}
+                onClick={() => {
+                  setLocalCardMode('attachments');
+                  if (!isViewOnly) onUpdate(card.id, { cardMode: 'attachments' });
+                }}
+              >
+                <Paperclip size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} /> Files
+              </button>
+            )}
           </div>
         )}
 
@@ -987,196 +1031,200 @@ function Card({
           </div>
         ) : (
           /* Render Tab Content */
-          <div className="card-body">
-            {activeMode === 'notes' && (
-              <>
-                {/* Notes Customization Format Bar */}
-                <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: isViewOnly ? 'none' : 'flex' }}>
-                  {/* Font Family Select */}
-                  <select
-                    className="format-select font-family-select"
-                    value={card.notesFontFamily || 'sans'}
-                    onChange={handleFontFamilyChange}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                    }}
-                    title="Font Family"
-                  >
-                    <option value="sans">Sans-Serif</option>
-                    <option value="serif">Serif</option>
-                    <option value="mono">Monospace</option>
-                  </select>
+          (!isHeadingCard && (features.notes || features.sketch || features.attachments || features.tags)) && (
+            <div className="card-body">
+              {activeMode === 'notes' && features.notes && (
+                <>
+                  {/* Notes Customization Format Bar */}
+                  <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: isViewOnly ? 'none' : 'flex' }}>
+                    {/* Font Family Select */}
+                    <select
+                      className="format-select font-family-select"
+                      value={card.notesFontFamily || 'sans'}
+                      onChange={handleFontFamilyChange}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                      title="Font Family"
+                    >
+                      <option value="sans">Sans-Serif</option>
+                      <option value="serif">Serif</option>
+                      <option value="mono">Monospace</option>
+                    </select>
 
-                  {/* Font Size Select */}
-                  <select
-                    className="format-select font-size-select"
-                    value={card.notesFontSize || '14px'}
-                    onChange={handleFontSizeChange}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                    }}
-                    title="Font Size"
-                  >
-                    <option value="12px">12px</option>
-                    <option value="13px">13px</option>
-                    <option value="14px">14px</option>
-                    <option value="15px">15px</option>
-                    <option value="16px">16px</option>
-                    <option value="18px">18px</option>
-                    <option value="20px">20px</option>
-                    <option value="22px">22px</option>
-                    <option value="24px">24px</option>
-                    <option value="28px">28px</option>
-                    <option value="32px">32px</option>
-                  </select>
+                    {/* Font Size Select */}
+                    <select
+                      className="format-select font-size-select"
+                      value={card.notesFontSize || '14px'}
+                      onChange={handleFontSizeChange}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                      title="Font Size"
+                    >
+                      <option value="12px">12px</option>
+                      <option value="13px">13px</option>
+                      <option value="14px">14px</option>
+                      <option value="15px">15px</option>
+                      <option value="16px">16px</option>
+                      <option value="18px">18px</option>
+                      <option value="20px">20px</option>
+                      <option value="22px">22px</option>
+                      <option value="24px">24px</option>
+                      <option value="28px">28px</option>
+                      <option value="32px">32px</option>
+                    </select>
 
-                  {/* Text Color Select */}
-                  <select
-                    className="format-select text-color-select"
-                    value={card.notesTextColor || 'default'}
-                    onChange={handleTextColorChange}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                    }}
-                    title="Text Color"
+                    {/* Text Color Select */}
+                    <select
+                      className="format-select text-color-select"
+                      value={card.notesTextColor || 'default'}
+                      onChange={handleTextColorChange}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                      title="Text Color"
+                      style={{
+                        color: card.notesTextColor === 'emerald' ? 'var(--accent-emerald)' :
+                               card.notesTextColor === 'cyan' ? 'var(--accent-cyan)' :
+                               card.notesTextColor === 'amber' ? 'var(--accent-amber)' :
+                               card.notesTextColor === 'rose' ? 'var(--accent-rose)' : 'white'
+                      }}
+                    >
+                      <option value="default" style={{ color: 'white' }}>White</option>
+                      <option value="cyan" style={{ color: 'var(--accent-cyan)' }}>Cyan</option>
+                      <option value="emerald" style={{ color: 'var(--accent-emerald)' }}>Emerald</option>
+                      <option value="amber" style={{ color: 'var(--accent-amber)' }}>Amber</option>
+                      <option value="rose" style={{ color: 'var(--accent-rose)' }}>Rose</option>
+                    </select>
+
+                    <div className="format-divider" />
+
+                    {/* Bold Toggle Button */}
+                    <button
+                      type="button"
+                      className={`format-btn bold-btn ${card.notesFontWeight === 'bold' ? 'active' : ''}`}
+                      onClick={handleBoldClick}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      title="Bold"
+                      style={{ fontWeight: 'bold' }}
+                    >
+                      B
+                    </button>
+
+                    {/* Italic Toggle Button */}
+                    <button
+                      type="button"
+                      className={`format-btn italic-btn ${card.notesFontStyle === 'italic' ? 'active' : ''}`}
+                      onClick={handleItalicClick}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      title="Italic"
+                      style={{ fontStyle: 'italic' }}
+                    >
+                      I
+                    </button>
+
+                    {/* Underline Toggle Button */}
+                    <button
+                      type="button"
+                      className={`format-btn underline-btn ${card.notesTextDecoration === 'underline' ? 'active' : ''}`}
+                      onClick={handleUnderlineClick}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      title="Underline"
+                      style={{ textDecoration: 'underline' }}
+                    >
+                      U
+                    </button>
+
+                    {/* Container Card Button */}
+                    <button
+                      type="button"
+                      className="format-btn container-btn"
+                      onClick={handleContainerBoxClick}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      title="Wrap text in styled container card"
+                    >
+                      <Box size={11} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                    </button>
+                  </div>
+
+                  <div
+                    ref={editorRef}
+                    contentEditable={!isViewOnly}
+                    suppressContentEditableWarning
+                    className="card-content-textarea"
                     style={{
-                      color: card.notesTextColor === 'emerald' ? 'var(--accent-emerald)' :
-                             card.notesTextColor === 'cyan' ? 'var(--accent-cyan)' :
-                             card.notesTextColor === 'amber' ? 'var(--accent-amber)' :
-                             card.notesTextColor === 'rose' ? 'var(--accent-rose)' : 'white'
+                      ...notesStyle,
+                      overflowY: 'auto',
+                      cursor: 'text',
+                      userSelect: 'text',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
                     }}
-                  >
-                    <option value="default" style={{ color: 'white' }}>White</option>
-                    <option value="cyan" style={{ color: 'var(--accent-cyan)' }}>Cyan</option>
-                    <option value="emerald" style={{ color: 'var(--accent-emerald)' }}>Emerald</option>
-                    <option value="amber" style={{ color: 'var(--accent-amber)' }}>Amber</option>
-                    <option value="rose" style={{ color: 'var(--accent-rose)' }}>Rose</option>
-                  </select>
-
-                  <div className="format-divider" />
-
-                  {/* Bold Toggle Button */}
-                  <button
-                    type="button"
-                    className={`format-btn bold-btn ${card.notesFontWeight === 'bold' ? 'active' : ''}`}
-                    onClick={handleBoldClick}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                    }}
-                    title="Bold"
-                    style={{ fontWeight: 'bold' }}
-                  >
-                    B
-                  </button>
-
-                  {/* Italic Toggle Button */}
-                  <button
-                    type="button"
-                    className={`format-btn italic-btn ${card.notesFontStyle === 'italic' ? 'active' : ''}`}
-                    onClick={handleItalicClick}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                    }}
-                    title="Italic"
-                    style={{ fontStyle: 'italic' }}
-                  >
-                    I
-                  </button>
-
-                  {/* Underline Toggle Button */}
-                  <button
-                    type="button"
-                    className={`format-btn underline-btn ${card.notesTextDecoration === 'underline' ? 'active' : ''}`}
-                    onClick={handleUnderlineClick}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                    }}
-                    title="Underline"
-                    style={{ textDecoration: 'underline' }}
-                  >
-                    U
-                  </button>
-
-                  {/* Container Card Button */}
-                  <button
-                    type="button"
-                    className="format-btn container-btn"
-                    onClick={handleContainerBoxClick}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                    }}
-                    title="Wrap text in styled container card"
-                  >
-                    <Box size={11} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                  </button>
-                </div>
-
-                <div
-                  ref={editorRef}
-                  contentEditable={!isViewOnly}
-                  suppressContentEditableWarning
-                  className="card-content-textarea"
-                  style={{
-                    ...notesStyle,
-                    overflowY: 'auto',
-                    cursor: 'text',
-                    userSelect: 'text',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                  onInput={handleEditorInput}
-                  onBlur={handleEditorInput}
-                  onMouseUp={saveSelection}
-                  onKeyUp={saveSelection}
-                  placeholder="Write notes and concepts..."
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isViewOnly) return;
-                    if (e.target.classList.contains('notes-callout-delete')) {
-                      e.preventDefault();
-                      const calloutBox = e.target.closest('.notes-callout-box');
-                      if (calloutBox) {
-                        calloutBox.remove();
-                        handleEditorInput();
+                    onInput={handleEditorInput}
+                    onBlur={handleEditorInput}
+                    onMouseUp={saveSelection}
+                    onKeyUp={saveSelection}
+                    placeholder="Write notes and concepts..."
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isViewOnly) return;
+                      if (e.target.classList.contains('notes-callout-delete')) {
+                        e.preventDefault();
+                        const calloutBox = e.target.closest('.notes-callout-box');
+                        if (calloutBox) {
+                          calloutBox.remove();
+                          handleEditorInput();
+                        }
                       }
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (isViewOnly) return;
-                    // Handle Backspace when inside an empty callout box
-                    if (e.key === 'Backspace') {
-                      const selection = window.getSelection();
-                      if (selection && selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        const callout = range.commonAncestorContainer.nodeType === 1
-                          ? range.commonAncestorContainer.closest('.notes-callout-box')
-                          : range.commonAncestorContainer.parentElement?.closest('.notes-callout-box');
-                        
-                        if (callout) {
-                          const text = callout.textContent.replace('×', '').trim();
-                          if (text === '') {
-                            e.preventDefault();
-                            const parent = callout.parentNode;
-                            const textNode = document.createTextNode('');
-                            parent.insertBefore(textNode, callout);
-                            callout.remove();
-                            
-                            const newRange = document.createRange();
-                            newRange.setStart(textNode, 0);
-                            newRange.collapse(true);
-                            selection.removeAllRanges();
-                            selection.addRange(newRange);
-                            
-                            handleEditorInput();
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (isViewOnly) return;
+                      // Handle Backspace when inside an empty callout box
+                      if (e.key === 'Backspace') {
+                        const selection = window.getSelection();
+                        if (selection && selection.rangeCount > 0) {
+                          const range = selection.getRangeAt(0);
+                          const callout = range.commonAncestorContainer.nodeType === 1
+                            ? range.commonAncestorContainer.closest('.notes-callout-box')
+                            : range.commonAncestorContainer.parentElement?.closest('.notes-callout-box');
+                          
+                          if (callout) {
+                            const text = callout.textContent.replace('×', '').trim();
+                            if (text === '') {
+                              e.preventDefault();
+                              const parent = callout.parentNode;
+                              const textNode = document.createTextNode('');
+                              parent.insertBefore(textNode, callout);
+                              callout.remove();
+                              
+                              const newRange = document.createRange();
+                              newRange.setStart(textNode, 0);
+                              newRange.collapse(true);
+                              selection.removeAllRanges();
+                              selection.addRange(newRange);
+                              
+                              handleEditorInput();
+                            }
                           }
                         }
                       }
-                    }
-                  }}
-                />
-                
-                {/* Tags Area */}
+                    }}
+                  />
+                </>
+              )}
+
+              {/* Tags Area */}
+              {((activeMode === 'notes' && features.notes) || (!features.notes && features.tags)) && features.tags && (
                 <div className="card-tags-area">
                   {card.tags.map((tag) => (
                     <span key={tag} className="tag-badge">
@@ -1221,142 +1269,140 @@ function Card({
                     )
                   )}
                 </div>
-              </>
-            )}
+              )}
 
-            {activeMode === 'attachments' && (
-              <div className="card-attachments-section" onClick={(e) => e.stopPropagation()} style={{ borderTop: 'none', marginTop: '0', height: '100%', maxHeight: 'none' }}>
-                <div className="card-attachments-header" style={{ marginBottom: '0.4rem' }}>
-                  <span className="attachments-title">Attached Files</span>
-                  {!isViewOnly && (
-                    <label className="card-attach-label" title="Attach file (PDF, Image, Markdown, text)">
-                      <Paperclip size={11} /> Add
-                      <input 
-                        type="file" 
-                        onChange={handleAttachFile} 
-                        style={{ display: 'none' }} 
-                      />
-                    </label>
-                  )}
-                </div>
-                
-                <div className="card-attachments-list">
-                  {(card.attachments || []).length === 0 ? (
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '1.5rem 0' }}>
-                      No attachments on this card.
-                    </div>
-                  ) : (
-                    (card.attachments || []).map((att, idx) => {
-                      const isImg = att.mimeType.startsWith('image/');
-                      const isMd = att.name.endsWith('.md');
-                      const isPdf = att.mimeType === 'application/pdf';
-
-                      return (
-                        <div key={idx} className="card-attachment-item">
-                          <div className="attachment-item-info">
-                            <span className="attachment-icon">
-                              {isImg && <Image size={11} color="var(--accent-cyan)" />}
-                              {isMd && <FileText size={11} color="var(--accent-amber)" />}
-                              {isPdf && <FileText size={11} color="var(--accent-rose)" />}
-                              {!isImg && !isMd && !isPdf && <Paperclip size={11} color="var(--color-text-muted)" />}
-                            </span>
-                            <span className="attachment-name" title={att.name}>{att.name}</span>
-                            <span className="attachment-size">({(att.size / 1024).toFixed(1)} KB)</span>
-                          </div>
-                          
-                          <div className="attachment-item-actions">
-                            <a 
-                              href={att.dataUrl} 
-                              download={att.name}
-                              className="attachment-action-btn"
-                              title="Download file"
-                            >
-                              <Download size={10} />
-                            </a>
-                            {!isViewOnly && (
-                              <button 
-                                type="button"
-                                className="attachment-action-btn delete"
-                                onClick={(e) => handleRemoveAttachment(idx, e)}
-                                title="Remove attachment"
-                              >
-                                <X size={10} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-
-
-            {activeMode === 'sketch' && (
-              <div className="card-sketch-container">
-                <canvas
-                  ref={canvasRef}
-                  className="card-sketch-canvas"
-                  onMouseDown={handleSketchMouseDown}
-                  onMouseMove={handleSketchMouseMove}
-                  onMouseUp={handleSketchMouseUpOrLeave}
-                  onMouseLeave={handleSketchMouseUpOrLeave}
-                />
-                
-                {/* Floating controls for internal sandbox canvas */}
-                {!isViewOnly && (
-                  <div className="card-sketch-toolbar">
-                    <button 
-                      className={`card-sketch-btn ${sketchTool === 'draw' ? 'active' : ''}`}
-                      onClick={() => setSketchTool('draw')}
-                      title="Pencil drawing"
-                    >
-                      <Pencil size={11} />
-                    </button>
-                    <button 
-                      className={`card-sketch-btn ${sketchTool === 'erase' ? 'active' : ''}`}
-                      onClick={() => setSketchTool('erase')}
-                      title="Eraser tool"
-                    >
-                      <Eraser size={11} />
-                    </button>
-                    
-                    <div style={{ width: '1px', height: '10px', background: 'rgba(255,255,255,0.1)' }} />
-                    
-                    {/* Colors for sandbox canvas */}
-                    {['#ffffff', '#f43f5e', '#10b981', '#6366f1'].map((c) => (
-                      <div 
-                        key={c}
-                        className="color-dot"
-                        style={{ 
-                          backgroundColor: c, 
-                          width: '10px', 
-                          height: '10px', 
-                          border: sketchColor === c ? '1px solid white' : 'none' 
-                        }}
-                        onClick={() => {
-                          setSketchColor(c);
-                          setSketchTool('draw');
-                        }}
-                      />
-                    ))}
-                    
-                    <div style={{ width: '1px', height: '10px', background: 'rgba(255,255,255,0.1)' }} />
-                    
-                    <button 
-                      className="card-sketch-btn"
-                      onClick={handleClearSketch}
-                      title="Clear Sketch drawing"
-                    >
-                      <RefreshCw size={11} />
-                    </button>
+              {activeMode === 'attachments' && features.attachments && (
+                <div className="card-attachments-section" onClick={(e) => e.stopPropagation()} style={{ borderTop: 'none', marginTop: '0', height: '100%', maxHeight: 'none' }}>
+                  <div className="card-attachments-header" style={{ marginBottom: '0.4rem' }}>
+                    <span className="attachments-title">Attached Files</span>
+                    {!isViewOnly && (
+                      <label className="card-attach-label" title="Attach file (PDF, Image, Markdown, text)">
+                        <Paperclip size={11} /> Add
+                        <input 
+                          type="file" 
+                          onChange={handleAttachFile} 
+                          style={{ display: 'none' }} 
+                        />
+                      </label>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                  
+                  <div className="card-attachments-list">
+                    {(card.attachments || []).length === 0 ? (
+                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', textAlign: 'center', padding: '1.5rem 0' }}>
+                        No attachments on this card.
+                      </div>
+                    ) : (
+                      (card.attachments || []).map((att, idx) => {
+                        const isImg = att.mimeType.startsWith('image/');
+                        const isMd = att.name.endsWith('.md');
+                        const isPdf = att.mimeType === 'application/pdf';
+
+                        return (
+                          <div key={idx} className="card-attachment-item">
+                            <div className="attachment-item-info">
+                              <span className="attachment-icon">
+                                {isImg && <Image size={11} color="var(--accent-cyan)" />}
+                                {isMd && <FileText size={11} color="var(--accent-amber)" />}
+                                {isPdf && <FileText size={11} color="var(--accent-rose)" />}
+                                {!isImg && !isMd && !isPdf && <Paperclip size={11} color="var(--color-text-muted)" />}
+                              </span>
+                              <span className="attachment-name" title={att.name}>{att.name}</span>
+                              <span className="attachment-size">({(att.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            
+                            <div className="attachment-item-actions">
+                              <a 
+                                href={att.dataUrl} 
+                                download={att.name}
+                                className="attachment-action-btn"
+                                title="Download file"
+                              >
+                                <Download size={10} />
+                              </a>
+                              {!isViewOnly && (
+                                <button 
+                                  type="button"
+                                  className="attachment-action-btn delete"
+                                  onClick={(e) => handleRemoveAttachment(idx, e)}
+                                  title="Remove attachment"
+                                >
+                                  <X size={10} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeMode === 'sketch' && features.sketch && (
+                <div className="card-sketch-container">
+                  <canvas
+                    ref={canvasRef}
+                    className="card-sketch-canvas"
+                    onMouseDown={handleSketchMouseDown}
+                    onMouseMove={handleSketchMouseMove}
+                    onMouseUp={handleSketchMouseUpOrLeave}
+                    onMouseLeave={handleSketchMouseUpOrLeave}
+                  />
+                  
+                  {/* Floating controls for internal sandbox canvas */}
+                  {!isViewOnly && (
+                    <div className="card-sketch-toolbar">
+                      <button 
+                        className={`card-sketch-btn ${sketchTool === 'draw' ? 'active' : ''}`}
+                        onClick={() => setSketchTool('draw')}
+                        title="Pencil drawing"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button 
+                        className={`card-sketch-btn ${sketchTool === 'erase' ? 'active' : ''}`}
+                        onClick={() => setSketchTool('erase')}
+                        title="Eraser tool"
+                      >
+                        <Eraser size={11} />
+                      </button>
+                      
+                      <div style={{ width: '1px', height: '10px', background: 'rgba(255,255,255,0.1)' }} />
+                      
+                      {/* Colors for sandbox canvas */}
+                      {['#ffffff', '#f43f5e', '#10b981', '#6366f1'].map((c) => (
+                        <div 
+                          key={c}
+                          className="color-dot"
+                          style={{ 
+                            backgroundColor: c, 
+                            width: '10px', 
+                            height: '10px', 
+                            border: sketchColor === c ? '1px solid white' : 'none' 
+                          }}
+                          onClick={() => {
+                            setSketchColor(c);
+                            setSketchTool('draw');
+                          }}
+                        />
+                      ))}
+                      
+                      <div style={{ width: '1px', height: '10px', background: 'rgba(255,255,255,0.1)' }} />
+                      
+                      <button 
+                        className="card-sketch-btn"
+                        onClick={handleClearSketch}
+                        title="Clear Sketch drawing"
+                      >
+                        <RefreshCw size={11} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
         )}
       </div>
 
@@ -1377,7 +1423,7 @@ function Card({
       )}
 
       {/* Connection nodes rendered in Select Mode */}
-      {!isViewOnly && toolMode === 'select' && (
+      {!isViewOnly && toolMode === 'select' && features.connectPorts && (
         <>
           <div 
             className="connection-node node-top" 
