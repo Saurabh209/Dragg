@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -18,6 +18,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   // Custom delete confirmation state
   const [boardToDelete, setBoardToDelete] = useState(null);
   const [deletePassword, setDeletePassword] = useState('');
+  const [showImportHelpModal, setShowImportHelpModal] = useState(false);
   const [forceViewOnlyPending, setForceViewOnlyPending] = useState(false);
 
   // Keyboard control settings
@@ -352,7 +353,66 @@ function Dashboard({ onSelectBoard, showToast }) {
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target.result;
-      const parsedBoards = parseNotesText(text, file.name);
+      let parsedBoards = [];
+
+      if (file.name.toLowerCase().endsWith('.json')) {
+        try {
+          const json = JSON.parse(text);
+          if (Array.isArray(json)) {
+            if (json.length > 0 && json[0].name) {
+              parsedBoards = json;
+            } else {
+              parsedBoards = [{
+                name: file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+                cards: json.map((c, i) => ({
+                  id: c.id || Math.random().toString(36).substring(2, 11),
+                  title: c.title || `Card ${i + 1}`,
+                  content: c.content || '',
+                  code: c.code || '',
+                  badge: c.badge || null,
+                  color: c.color || 'slate',
+                  x: c.x !== undefined ? c.x : i * 360,
+                  y: c.y !== undefined ? c.y : 150,
+                  width: c.width || 250,
+                  height: c.height || 180,
+                  type: c.type || 'note',
+                  cardMode: c.cardMode || 'notes'
+                })),
+                connections: [],
+                pan: { x: 100, y: 100 },
+                zoom: 0.9
+              }];
+            }
+          } else if (typeof json === 'object' && json !== null) {
+            parsedBoards = [{
+              name: json.name || file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+              cards: (json.cards || []).map((c, i) => ({
+                id: c.id || Math.random().toString(36).substring(2, 11),
+                title: c.title || `Card ${i + 1}`,
+                content: c.content || '',
+                code: c.code || '',
+                badge: c.badge || null,
+                color: c.color || 'slate',
+                x: c.x !== undefined ? c.x : i * 360,
+                y: c.y !== undefined ? c.y : 150,
+                width: c.width || 250,
+                height: c.height || 180,
+                type: c.type || 'note',
+                cardMode: c.cardMode || 'notes'
+              })),
+              connections: json.connections || [],
+              pan: json.pan || { x: 100, y: 100 },
+              zoom: json.zoom || 0.9
+            }];
+          }
+        } catch (jsonErr) {
+          console.error(jsonErr);
+          showToast('Invalid JSON file format.', 'error');
+          return;
+        }
+      } else {
+        parsedBoards = parseNotesText(text, file.name);
+      }
 
       if (parsedBoards.length === 0) {
         showToast('No valid boards or cards found in text file.', 'error');
@@ -438,8 +498,8 @@ function Dashboard({ onSelectBoard, showToast }) {
       </button>
 
       <header className="dashboard-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-          <Hand size={36} color="var(--accent-indigo)" style={{ transform: 'rotate(-10deg)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', marginBottom: '0.5rem' }}>
+          <img src="/favicon.svg" alt="Dragg Logo" style={{ width: '42px', height: '42px', filter: 'drop-shadow(0 0 12px rgba(99, 102, 241, 0.6))' }} />
           <h1 className="dashboard-title" style={{ margin: 0 }}>dragg</h1>
         </div>
         <p className="dashboard-subtitle">Create, design, and connect ideas on a free-form board</p>
@@ -480,32 +540,70 @@ function Dashboard({ onSelectBoard, showToast }) {
           Create New Board
         </button>
 
-        <label 
-          className="btn btn-secondary glass"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '10px',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            cursor: 'pointer',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            background: 'rgba(255, 255, 255, 0.03)',
-            color: 'var(--color-text-main)'
-          }}
-          title="Import boards from structured text file (.txt, .md)"
-        >
-          <FileText size={16} color="var(--accent-cyan)" />
-          <span>Import Notes</span>
-          <input 
-            type="file" 
-            accept=".txt,.md" 
-            onChange={handleImportNotesFile} 
-            style={{ display: 'none' }} 
-          />
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <label 
+            className="glass-btn dashboard-action-btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.6rem 1rem',
+              borderRadius: '10px',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.03)',
+              color: 'var(--color-text-main)'
+            }}
+            title="Import boards from structured file (.txt, .md, .json)"
+          >
+            <FileText size={16} color="var(--accent-cyan)" />
+            <span>Import Notes</span>
+            <span 
+              style={{
+                background: 'linear-gradient(135deg, #f43f5e, #ec4899)',
+                color: '#fff',
+                fontSize: '0.6rem',
+                fontWeight: 800,
+                padding: '0.12rem 0.4rem',
+                borderRadius: '4px',
+                letterSpacing: '0.5px',
+                textTransform: 'uppercase',
+                boxShadow: '0 0 8px rgba(244, 63, 94, 0.5)'
+              }}
+            >
+              BETA
+            </span>
+            <input 
+              type="file" 
+              accept=".txt,.md,.json" 
+              onChange={handleImportNotesFile} 
+              style={{ display: 'none' }} 
+            />
+          </label>
+
+          <button
+            onClick={() => setShowImportHelpModal(true)}
+            className="glass-btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.03)',
+              color: 'var(--accent-cyan)',
+              cursor: 'pointer',
+              transition: 'transform 0.15s'
+            }}
+            title="View Supported Formats & JSON Template Guide"
+          >
+            <Info size={16} />
+          </button>
+        </div>
       </div>
 
       <div style={{ width: '100%', maxWidth: '1100px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '0.6rem' }}>
@@ -907,6 +1005,148 @@ function Dashboard({ onSelectBoard, showToast }) {
                 style={{ background: 'var(--accent-indigo)' }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Import Notes Help & Template Guide Modal */}
+      {showImportHelpModal && (
+        <div 
+          className="modal-overlay"
+          onClick={() => setShowImportHelpModal(false)}
+          style={{ zIndex: 2000 }}
+        >
+          <div 
+            className="modal-content glass"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '560px',
+              maxWidth: '92%',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              background: 'rgba(14, 14, 22, 0.95)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '16px',
+              padding: '1.4rem'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Info size={18} color="var(--accent-cyan)" />
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', fontWeight: 700 }}>
+                  Import Notes Format Guide
+                </h3>
+                <span style={{ background: 'linear-gradient(135deg, #f43f5e, #ec4899)', color: '#fff', fontSize: '0.6rem', fontWeight: 800, padding: '0.12rem 0.4rem', borderRadius: '4px' }}>
+                  BETA
+                </span>
+              </div>
+              <button 
+                onClick={() => setShowImportHelpModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: '1.5', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              <p style={{ margin: 0 }}>
+                You can generate entire whiteboards automatically by importing structured files. Supported formats: <strong style={{ color: '#fff' }}>JSON (.json)</strong> and <strong style={{ color: '#fff' }}>Structured Markdown/Text (.md, .txt)</strong>.
+              </p>
+
+              <div>
+                <h4 style={{ margin: '0 0 0.3rem 0', color: '#a5b4fc', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Format 1: Full Board JSON (.json)
+                </h4>
+                <pre style={{
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '0.7rem 0.9rem',
+                  color: '#38bdf8',
+                  fontSize: '0.75rem',
+                  fontFamily: 'monospace',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  margin: 0
+                }}>
+{`{
+  "name": "My System Architecture",
+  "cards": [
+    {
+      "title": "Auth API Service",
+      "content": "Handles login and OAuth authentication.",
+      "color": "indigo",
+      "badge": { "text": "ENTRY POINT", "color": "#881337" },
+      "x": 100,
+      "y": 120
+    },
+    {
+      "title": "MongoDB Database",
+      "content": "Stores user profiles and analytics.",
+      "color": "emerald",
+      "badge": { "text": "FEATURE", "color": "#065f46" },
+      "x": 450,
+      "y": 120
+    }
+  ]
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 0.3rem 0', color: '#a5b4fc', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Format 2: Markdown Notes (.md, .txt)
+                </h4>
+                <pre style={{
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '0.7rem 0.9rem',
+                  color: '#34d399',
+                  fontSize: '0.75rem',
+                  fontFamily: 'monospace',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  margin: 0
+                }}>
+{`# Auth API Service
+Handles user authentication and JWT validation.
+
+# MongoDB Database
+Stores user profiles and real-time logs.`}
+                </pre>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.4rem' }}>
+              <button
+                onClick={() => {
+                  const sampleJson = JSON.stringify({
+                    name: "Sample Imported Board",
+                    cards: [
+                      { title: "Main Controller", content: "Primary entry point for requests.", badge: { text: "ENTRY POINT", color: "#881337" }, x: 100, y: 120 },
+                      { title: "Database Module", content: "PostgreSQL query execution handler.", badge: { text: "FEATURE", color: "#065f46" }, x: 450, y: 120 }
+                    ]
+                  }, null, 2);
+                  navigator.clipboard.writeText(sampleJson);
+                  showToast('Sample JSON template copied to clipboard!', 'success');
+                }}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+              >
+                Copy Sample Template
+              </button>
+              <button
+                onClick={() => setShowImportHelpModal(false)}
+                className="btn btn-primary"
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', background: 'var(--accent-indigo)' }}
+              >
+                Got It
               </button>
             </div>
           </div>

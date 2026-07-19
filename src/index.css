@@ -68,10 +68,14 @@ h1, h2, h3, h4, h5, h6 {
 
 .glass-toolbar {
   background: var(--bg-toolbar);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+}
+
+.glass-toolbar::after {
+  display: none;
 }
 
 /* Dashboard Styles */
@@ -348,9 +352,61 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   pointer-events: none;
   transform-origin: 0 0;
-  /* Minimal Dot Grid Style */
-  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
-  background-size: 40px 40px;
+}
+
+/* Grid Style Variants */
+.canvas-grid.grid-dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1.5px, transparent 1.5px);
+  background-size: 36px 36px;
+}
+
+.canvas-grid.grid-fine-dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.canvas-grid.grid-lines {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.canvas-grid.grid-major-grid {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+}
+
+.canvas-grid.grid-crosses {
+  background-image: url("data:image/svg+xml,%3Csvg width='36' height='36' viewBox='0 0 36 36' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18 13V23M13 18H23' stroke='rgba(255,255,255,0.15)' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 36px 36px;
+}
+
+.canvas-grid.grid-isometric {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='69.282' viewBox='0 0 40 69.282' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M40 0L0 23.094M0 23.094L40 46.188M0 23.094V69.282M40 46.188L0 69.282M40 46.188V0' stroke='rgba(255,255,255,0.06)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 40px 69.282px;
+}
+
+.canvas-grid.grid-honeycomb {
+  background-image: url("data:image/svg+xml,%3Csvg width='56' height='100' viewBox='0 0 56 100' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 0L56 16.166V48.5L28 64.666L0 48.5V16.166L28 0ZM28 100L56 83.834V51.5L28 35.334L0 51.5V83.834L28 100Z' stroke='rgba(255,255,255,0.08)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+}
+
+.canvas-grid.grid-blueprint {
+  background-color: #0b172a;
+  background-image: 
+    linear-gradient(rgba(59, 130, 246, 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.28) 1px, transparent 1px),
+    linear-gradient(rgba(59, 130, 246, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.1) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+}
+
+.canvas-grid.grid-ruled {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 100% 28px;
 }
 
 .canvas-content {
@@ -430,73 +486,75 @@ h1, h2, h3, h4, h5, h6 {
   border-width: 1.5px;
   border-style: solid;
   transition: border-color 0.2s, box-shadow 0.2s;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 /* Dynamic Accent Colors for Cards */
 .card-theme-slate {
-  background: rgba(18, 20, 24, 0.9);
-  border-color: rgba(71, 85, 105, 0.3);
+  background: rgba(18, 20, 24, 0.97);
+  border-color: rgba(71, 85, 105, 0.65);
   --theme-shadow-color: rgba(71, 85, 105, 0.6);
   --theme-accent-color: var(--accent-slate);
 }
 .card-theme-slate.selected {
   border-color: var(--accent-slate);
-  box-shadow: 0 0 20px rgba(71, 85, 105, 0.35);
+  box-shadow: 0 0 20px rgba(71, 85, 105, 0.45);
 }
 
 .card-theme-indigo {
-  background: rgba(18, 18, 30, 0.92);
-  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(18, 18, 30, 0.97);
+  border-color: rgba(99, 102, 241, 0.65);
   --theme-shadow-color: rgba(99, 102, 241, 0.6);
   --theme-accent-color: var(--accent-indigo);
 }
 .card-theme-indigo.selected {
   border-color: var(--accent-indigo);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.45);
 }
 
 .card-theme-cyan {
-  background: rgba(12, 22, 28, 0.92);
-  border-color: rgba(6, 182, 212, 0.25);
+  background: rgba(12, 22, 28, 0.97);
+  border-color: rgba(6, 182, 212, 0.65);
   --theme-shadow-color: rgba(6, 182, 212, 0.6);
   --theme-accent-color: var(--accent-cyan);
 }
 .card-theme-cyan.selected {
   border-color: var(--accent-cyan);
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.35);
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.45);
 }
 
 .card-theme-emerald {
-  background: rgba(12, 24, 20, 0.92);
-  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(12, 24, 20, 0.97);
+  border-color: rgba(16, 185, 129, 0.65);
   --theme-shadow-color: rgba(16, 185, 129, 0.6);
   --theme-accent-color: var(--accent-emerald);
 }
 .card-theme-emerald.selected {
   border-color: var(--accent-emerald);
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.45);
 }
 
 .card-theme-amber {
-  background: rgba(24, 20, 15, 0.92);
-  border-color: rgba(245, 158, 11, 0.25);
+  background: rgba(24, 20, 15, 0.97);
+  border-color: rgba(245, 158, 11, 0.65);
   --theme-shadow-color: rgba(245, 158, 11, 0.6);
   --theme-accent-color: var(--accent-amber);
 }
 .card-theme-amber.selected {
   border-color: var(--accent-amber);
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.45);
 }
 
 .card-theme-rose {
-  background: rgba(24, 15, 18, 0.92);
-  border-color: rgba(244, 63, 94, 0.25);
+  background: rgba(24, 15, 18, 0.97);
+  border-color: rgba(244, 63, 94, 0.65);
   --theme-shadow-color: rgba(244, 63, 94, 0.6);
   --theme-accent-color: var(--accent-rose);
 }
 .card-theme-rose.selected {
   border-color: var(--accent-rose);
-  box-shadow: 0 0 20px rgba(244, 63, 94, 0.35);
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.45);
 }
 
 /* Card Header & Controls */
@@ -903,7 +961,7 @@ h1, h2, h3, h4, h5, h6 {
   position: absolute;
   width: 24px;
   height: 24px;
-  z-index: 100;
+  z-index: 1000;
   cursor: crosshair;
   pointer-events: auto;
   opacity: 0;
@@ -984,17 +1042,21 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .toolbar-container {
-  position: absolute;
-  bottom: 2rem;
+  position: fixed;
+  bottom: 1.8rem;
   left: 50%;
   transform: translateX(-50%);
-  border-radius: 20px;
-  padding: 0.6rem 1.2rem;
+  border-radius: 24px;
+  padding: 0.5rem 1.1rem;
   display: flex;
-  gap: 1rem;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.8rem;
   align-items: center;
+  white-space: nowrap;
   z-index: 1000;
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
 }
 
 .toolbar-container.view-only-locked {
@@ -1130,17 +1192,24 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .toast-success {
-  border-left: 3px solid var(--accent-emerald);
-  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.12);
   color: #a7f3d0;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
 }
 
 .toast-error {
-  border-left: 3px solid var(--accent-rose);
-  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.12);
   color: #fecdd3;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+}
+
+.toast-info {
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  backdrop-filter: blur(12px);
 }
 
 /* Animations */
@@ -2012,7 +2081,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
 }
 
-.card-wrapper.is-heading-card .card-action-btn.delete {
+.card-wrapper.is-heading-card .card-action-btn {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease-in-out, background 0.2s;
@@ -2021,7 +2090,8 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0;
 }
 
-.card-wrapper.is-heading-card:hover .card-action-btn.delete {
+.card-wrapper.is-heading-card:hover .card-action-btn,
+.card-wrapper.is-heading-card.selected .card-action-btn {
   opacity: 1;
   pointer-events: auto;
 }

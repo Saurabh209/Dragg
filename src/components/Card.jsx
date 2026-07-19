@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw, GripHorizontal, Paperclip, Download, Image, Play, Check, Box } from 'lucide-react';
+import { Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw, GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag } from 'lucide-react';
 
 const COLORS = [
   { name: 'slate', value: 'var(--accent-slate)' },
@@ -8,6 +8,22 @@ const COLORS = [
   { name: 'emerald', value: 'var(--accent-emerald)' },
   { name: 'amber', value: 'var(--accent-amber)' },
   { name: 'rose', value: 'var(--accent-rose)' },
+];
+
+const HIGH_TONE_BADGE_COLORS = [
+  { name: 'Dark Crimson', hex: '#881337' },
+  { name: 'Dark Ruby', hex: '#9f1239' },
+  { name: 'Dark Purple', hex: '#581c87' },
+  { name: 'Dark Amber', hex: '#92400e' },
+  { name: 'Dark Emerald', hex: '#065f46' },
+  { name: 'Dark Cyan', hex: '#0e7490' },
+];
+
+const PRESET_BADGES = [
+  { text: 'Entry Point', color: '#881337', isStartNode: true },
+  { text: 'Bug', color: '#9f1239', isStartNode: false },
+  { text: 'Deadend', color: '#581c87', isStartNode: false },
+  { text: 'Feature', color: '#065f46', isStartNode: false },
 ];
 
 const MIN_WIDTH = 220;
@@ -77,6 +93,7 @@ function Card({
   onDoubleClickFocus
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showBadgePicker, setShowBadgePicker] = useState(false);
   const [isEditingTag, setIsEditingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
   
@@ -95,6 +112,27 @@ function Card({
   const savedSelectionRef = useRef(null);
   const isDrawingRef = useRef(false);
   const lastCoordsRef = useRef({ x: 0, y: 0 });
+  const colorPickerRef = useRef(null);
+  const badgePickerRef = useRef(null);
+
+  // Auto-close popovers on clicking outside the card / popover
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showColorPicker && colorPickerRef.current && !colorPickerRef.current.contains(e.target)) {
+        setShowColorPicker(false);
+      }
+      if (showBadgePicker && badgePickerRef.current && !badgePickerRef.current.contains(e.target)) {
+        setShowBadgePicker(false);
+      }
+    };
+
+    if (showColorPicker || showBadgePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColorPicker, showBadgePicker]);
 
   const [localCardMode, setLocalCardMode] = useState(null);
 
@@ -447,7 +485,7 @@ function Card({
     ctx.clearRect(0, 0, rect.width, rect.height);
 
     if (card.drawingDataUrl) {
-      const img = new Image();
+      const img = new window.Image();
       img.onload = () => {
         ctx.drawImage(img, 0, 0, rect.width, rect.height);
       };
@@ -834,14 +872,20 @@ function Card({
     onUpdate(card.id, { attachments: updatedAttachments });
   };
 
-  const isCustomColor = card.color && card.color.startsWith('#');
-  const currentThemeClass = isCustomColor ? '' : `card-theme-${card.color || 'slate'}`;
+  const currentBadge = card.badge || (card.isStartNode ? { text: 'Entry Point', color: '#881337' } : null);
+
+  // If card has a badge tag, the tag color overrides default card theme/color!
+  const effectiveColor = (currentBadge && currentBadge.color) ? currentBadge.color : card.color;
+  const isCustomColor = Boolean(effectiveColor && (effectiveColor.startsWith('#') || currentBadge?.color));
+  const currentThemeClass = isCustomColor ? '' : `card-theme-${effectiveColor || 'slate'}`;
   const isImageCard = card.type === 'image';
 
   const customCardStyle = isCustomColor ? {
-    borderColor: isSelected ? card.color : hexToRgba(card.color, 0.25),
-    background: `linear-gradient(${hexToRgba(card.color, 0.05)}, ${hexToRgba(card.color, 0.05)}), rgba(18, 20, 24, 0.95)`,
-    boxShadow: isSelected ? `0 0 20px ${hexToRgba(card.color, 0.35)}` : 'none',
+    borderColor: isSelected ? effectiveColor : hexToRgba(effectiveColor, 0.75),
+    background: `linear-gradient(${hexToRgba(effectiveColor, 0.22)}, ${hexToRgba(effectiveColor, 0.12)}), rgba(18, 20, 24, 0.97)`,
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    boxShadow: isSelected ? `0 0 22px ${hexToRgba(effectiveColor, 0.55)}` : `0 4px 18px ${hexToRgba(effectiveColor, 0.3)}`,
   } : {};
 
   const notesStyle = {
@@ -879,6 +923,244 @@ function Card({
         if (onDoubleClickFocus) onDoubleClickFocus(card);
       }}
     >
+      {/* Floating Color Picker Overlay (OUTSIDE .card-content-container) */}
+      {showColorPicker && (
+        <div 
+          ref={colorPickerRef}
+          className="card-color-picker-overlay glass" 
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(18, 18, 28, 0.95)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            borderRadius: '20px',
+            padding: '0.4rem 0.7rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            zIndex: 500,
+            boxShadow: '0 12px 35px rgba(0, 0, 0, 0.6)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {COLORS.map((col) => (
+            <div
+              key={col.name}
+              className="color-dot"
+              style={{ 
+                backgroundColor: col.value,
+                width: '18px',
+                height: '18px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                border: card.color === col.name ? '2px solid #fff' : '1px solid rgba(255, 255, 255, 0.2)',
+                transition: 'transform 0.15s'
+              }}
+              onClick={() => {
+                onUpdate(card.id, { color: col.name });
+                setShowColorPicker(false);
+              }}
+              title={col.name}
+            />
+          ))}
+          <div style={{ width: '1px', height: '14px', background: 'rgba(255, 255, 255, 0.2)', margin: '0 2px' }} />
+          {/* Custom Color Picker input */}
+          <div className="color-picker-custom-wrapper" title="Custom color picker">
+            <input
+              type="color"
+              value={isCustomColor ? card.color : '#6366f1'}
+              onChange={(e) => onUpdate(card.id, { color: e.target.value })}
+              className="color-dot-input"
+              style={{ width: '22px', height: '22px', border: 'none', background: 'none', cursor: 'pointer' }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Floating Custom Badge & Tag Picker Overlay (OUTSIDE .card-content-container) */}
+      {showBadgePicker && (
+        <div 
+          ref={badgePickerRef}
+          className="card-badge-picker-overlay glass" 
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            right: '0',
+            background: 'rgba(18, 18, 28, 0.95)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            borderRadius: '12px',
+            padding: '0.7rem 0.9rem',
+            zIndex: 500,
+            boxShadow: '0 12px 35px rgba(0, 0, 0, 0.6)',
+            width: '220px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.6rem'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
+              Badge & Status Tag
+            </span>
+            <button 
+              onClick={() => setShowBadgePicker(false)}
+              style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+
+          {/* Quick Preset Badge Buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+            {PRESET_BADGES.map((preset) => (
+              <button
+                key={preset.text}
+                onClick={() => {
+                  onUpdate(card.id, { 
+                    color: preset.color,
+                    badge: { text: preset.text, color: preset.color },
+                    isStartNode: preset.isStartNode
+                  });
+                  setShowBadgePicker(false);
+                }}
+                style={{
+                  background: preset.color,
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.22rem 0.55rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 750,
+                  cursor: 'pointer',
+                  boxShadow: `0 0 10px ${hexToRgba(preset.color, 0.6)}`,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}
+              >
+                {preset.text}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', margin: '0.1rem 0' }} />
+
+          {/* Custom Label Text Input */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Custom Label Text</span>
+            <input 
+              type="text"
+              value={(card.badge?.text || (card.isStartNode ? 'Entry Point' : ''))}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val.trim()) {
+                  onUpdate(card.id, { badge: null, isStartNode: false });
+                } else {
+                  onUpdate(card.id, { 
+                    badge: { text: val, color: card.badge?.color || card.color || '#881337' }
+                  });
+                }
+              }}
+              placeholder="e.g. WIP, DEADEND, BUG..."
+              style={{
+                background: 'rgba(0, 0, 0, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '6px',
+                padding: '0.3rem 0.6rem',
+                color: '#fff',
+                fontSize: '0.75rem',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* High-Tone Colors Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Card & Badge Color</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              {HIGH_TONE_BADGE_COLORS.map((col) => {
+                const activeCol = card.badge?.color || card.color || (card.isStartNode ? '#881337' : null);
+                return (
+                  <div
+                    key={col.name}
+                    onClick={() => {
+                      const text = card.badge?.text || '';
+                      onUpdate(card.id, { 
+                        color: col.hex,
+                        badge: { text, color: col.hex }
+                      });
+                    }}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      backgroundColor: col.hex,
+                      cursor: 'pointer',
+                      boxShadow: activeCol === col.hex ? `0 0 10px ${col.hex}` : 'none',
+                      border: activeCol === col.hex ? '2px solid #fff' : '1px solid rgba(255, 255, 255, 0.2)',
+                      transition: 'transform 0.15s'
+                    }}
+                    title={col.name}
+                  />
+                );
+              })}
+
+              {/* Custom High-Tone Color Input */}
+              <input 
+                type="color"
+                value={card.badge?.color || card.color || '#881337'}
+                onChange={(e) => {
+                  const text = card.badge?.text || '';
+                  const colHex = e.target.value;
+                  onUpdate(card.id, { 
+                    color: colHex,
+                    badge: { text, color: colHex } 
+                  });
+                }}
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  padding: 0,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer'
+                }}
+                title="Custom Card Color"
+              />
+            </div>
+          </div>
+
+          {/* Clear Badge Option */}
+          {(card.badge || card.isStartNode) && (
+            <button
+              onClick={() => {
+                onUpdate(card.id, { badge: null, isStartNode: false });
+                setShowBadgePicker(false);
+              }}
+              style={{
+                background: 'rgba(244, 63, 94, 0.15)',
+                border: '1px solid rgba(244, 63, 94, 0.35)',
+                color: '#fecdd3',
+                borderRadius: '6px',
+                padding: '0.35rem',
+                fontSize: '0.7rem',
+                cursor: 'pointer',
+                fontWeight: 600,
+                marginTop: '0.2rem'
+              }}
+            >
+              Remove Badge
+            </button>
+          )}
+        </div>
+      )}
       <div className="card-content-container">
         {/* Card Header */}
         <div className="card-header">
@@ -895,9 +1177,39 @@ function Card({
             readOnly={isViewOnly}
             style={isHeadingCard ? { width: 'calc(100% - 24px)' } : {}}
           />
-          {card.isStartNode && (
-            <span className="entry-point-badge">Entry Point</span>
-          )}
+          {(() => {
+            if (!currentBadge || !currentBadge.text) return null;
+            return (
+              <span 
+                className="custom-card-badge"
+                onClick={(e) => {
+                  if (!isViewOnly) {
+                    e.stopPropagation();
+                    setShowBadgePicker(!showBadgePicker);
+                  }
+                }}
+                style={{
+                  background: currentBadge.color || '#881337',
+                  color: '#ffffff',
+                  fontWeight: 750,
+                  fontSize: '0.65rem',
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginRight: '0.4rem',
+                  flexShrink: 0,
+                  boxShadow: `0 0 10px ${hexToRgba(currentBadge.color || '#881337', 0.7)}`,
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  cursor: isViewOnly ? 'default' : 'pointer',
+                  userSelect: 'none'
+                }}
+                title={isViewOnly ? `Badge: ${currentBadge.text}` : `Click to customize badge (${currentBadge.text})`}
+              >
+                {currentBadge.text}
+              </span>
+            );
+          })()}
           <div className="card-actions-wrapper">
             {/* Tick Mark/Complete Button */}
             {!isViewOnly && !isHeadingCard && features.completedStatus && (
@@ -922,10 +1234,14 @@ function Card({
                 <Link2 size={14} color="var(--accent-cyan)" />
               </button>
             )}
-            {!isViewOnly && !isHeadingCard && features.colorPalette && (
+            {!isViewOnly && (features.colorPalette || isHeadingCard) && (
               <button
                 className="card-action-btn"
-                onClick={() => setShowColorPicker(!showColorPicker)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowColorPicker((prev) => !prev);
+                }}
                 title="Color Theme"
               >
                 <Palette size={14} />
@@ -933,14 +1249,17 @@ function Card({
             )}
             {!isViewOnly && !isHeadingCard && (
               <button
-                className={`card-action-btn start-node-btn ${card.isStartNode ? 'active' : ''}`}
+                className={`card-action-btn start-node-btn ${(card.badge || card.isStartNode) ? 'active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onUpdate(card.id, { isStartNode: !card.isStartNode });
+                  setShowBadgePicker(!showBadgePicker);
                 }}
-                title={card.isStartNode ? "Remove Entry Point" : "Mark as Entry Point"}
+                title={(card.badge?.text || card.isStartNode) ? `Badge: ${card.badge?.text || 'Entry Point'}` : "Badge & Card Color"}
               >
-                <Play size={13} fill={card.isStartNode ? "var(--accent-rose)" : "none"} color={card.isStartNode ? "var(--accent-rose)" : "var(--color-text-muted)"} />
+                <Tag 
+                  size={13} 
+                  color={(card.badge?.color || (card.isStartNode ? '#881337' : (card.color?.startsWith('#') ? card.color : null))) || "var(--color-text-muted)"} 
+                />
               </button>
             )}
             {!isViewOnly && (
@@ -954,35 +1273,6 @@ function Card({
             )}
           </div>
         </div>
-
-        {/* Floating Color Picker Overlay */}
-        {showColorPicker && (
-          <div className="card-color-picker-overlay" onClick={(e) => e.stopPropagation()}>
-            {COLORS.map((col) => (
-              <div
-                key={col.name}
-                className="color-dot"
-                style={{ backgroundColor: col.value }}
-                onClick={() => {
-                  onUpdate(card.id, { color: col.name });
-                  setShowColorPicker(false);
-                }}
-                title={col.name}
-              />
-            ))}
-            <div style={{ width: '1px', height: '12px', background: 'rgba(255, 255, 255, 0.15)', margin: '0 4px' }} />
-            {/* Custom Color Picker input */}
-            <div className="color-picker-custom-wrapper" title="Custom color picker">
-              <input
-                type="color"
-                value={isCustomColor ? card.color : '#6366f1'}
-                onChange={(e) => onUpdate(card.id, { color: e.target.value })}
-                className="color-dot-input"
-              />
-              <span className="color-picker-custom-icon">🎨</span>
-            </div>
-          </div>
-        )}
 
         {/* Tab Headers (Notes vs Code vs Sketch vs Files) - For standard note cards */}
         {!isImageCard && !isHeadingCard && [features.notes, features.sketch, features.attachments].filter(Boolean).length > 1 && (

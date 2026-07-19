@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import Toolbar from './Toolbar';
-import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -13,8 +13,22 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [drawings, setDrawings] = useState([]); // Array of strokes: { tool, color, thickness, points }
   const [pan, setPan] = useState({ x: 100, y: 100 });
   const [zoom, setZoom] = useState(1.0);
-  const [gridVisible, setGridVisible] = useState(true);
+  const [gridType, setGridType] = useState(() => {
+    const saved = localStorage.getItem('dragg-grid-type');
+    return saved || 'dots';
+  });
+  const [boardBgColor, setBoardBgColor] = useState(() => {
+    return localStorage.getItem('dragg-board-bg') || '#0a0a0c';
+  });
   const [selectedCardId, setSelectedCardId] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem('dragg-grid-type', gridType);
+  }, [gridType]);
+
+  useEffect(() => {
+    localStorage.setItem('dragg-board-bg', boardBgColor);
+  }, [boardBgColor]);
   
   // Security locks states
   const [localPassword, setLocalPassword] = useState(boardPassword || '');
@@ -37,6 +51,16 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [shouldGlowAlert, setShouldGlowAlert] = useState(false);
   const unsavedSinceRef = useRef(null);
+
+  // Auto-Save setting (persisted in localStorage, defaults to 2 mins)
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
+    const saved = localStorage.getItem('dragg-autosave-enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dragg-autosave-enabled', JSON.stringify(autoSaveEnabled));
+  }, [autoSaveEnabled]);
 
   // For connection creation
   const [draftConnection, setDraftConnection] = useState(null);
@@ -93,6 +117,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const isPanningRef = useRef(false);
   const saveTimeoutRef = useRef(null);
   const isInitialLoad = useRef(true);
+  const lastSavedStateRef = useRef(null);
 
   // Touch tracking state
   const touchStateRef = useRef({
@@ -172,6 +197,17 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         setProtectionMode(data.protectionMode || 'none');
         setBoardCode(data.code || '');
         setBoardLanguage(data.language || 'javascript');
+
+        lastSavedStateRef.current = {
+          boardName: data.name || 'Untitled Board',
+          cards: JSON.parse(JSON.stringify(data.cards || [])),
+          connections: JSON.parse(JSON.stringify(data.connections || [])),
+          drawings: JSON.parse(JSON.stringify(data.drawings || [])),
+          pan: JSON.parse(JSON.stringify(data.pan || { x: 100, y: 100 })),
+          zoom: data.zoom || 1.0,
+          boardCode: data.code || '',
+          boardLanguage: data.language || 'javascript'
+        };
         
         setTimeout(() => {
           isInitialLoad.current = false;
@@ -269,30 +305,90 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     return 'saved'; // green if up-to-date
   };
 
-  // Unified save board API function
+  // Unified save board API function using Delta PATCH with PUT fallback
   const handleSaveBoard = async (isManual = false) => {
     if (isViewOnly) return;
     setSaveStatus('saving');
     try {
-      const dataToSave = latestDataRef.current;
-      const res = await fetch(`${API_BASE}/boards/${boardId}`, {
-        method: 'PUT',
+      const current = latestDataRef.current;
+      const saved = lastSavedStateRef.current || {
+        boardName: '', cards: [], connections: [], drawings: [], pan: { x: 0, y: 0 }, zoom: 1, boardCode: '', boardLanguage: ''
+      };
+
+      const savedCardMap = new Map((saved.cards || []).map(c => [c.id, JSON.stringify(c)]));
+      const currentCardMap = new Map((current.cards || []).map(c => [c.id, c]));
+
+      const updatedCards = [];
+      (current.cards || []).forEach(c => {
+        const jsonStr = JSON.stringify(c);
+        if (!savedCardMap.has(c.id) || savedCardMap.get(c.id) !== jsonStr) {
+          updatedCards.push(c);
+        }
+      });
+
+      const deletedCardIds = [];
+      (saved.cards || []).forEach(c => {
+        if (!currentCardMap.has(c.id)) {
+          deletedCardIds.push(c.id);
+        }
+      });
+
+      const deltaPayload = {};
+      if (updatedCards.length > 0) deltaPayload.updatedCards = updatedCards;
+      if (deletedCardIds.length > 0) deltaPayload.deletedCardIds = deletedCardIds;
+
+      if (JSON.stringify(current.connections) !== JSON.stringify(saved.connections)) {
+        deltaPayload.updatedConnections = current.connections;
+      }
+      if (JSON.stringify(current.drawings) !== JSON.stringify(saved.drawings)) {
+        deltaPayload.updatedDrawings = current.drawings;
+      }
+      if (current.boardName !== saved.boardName) deltaPayload.name = current.boardName;
+      if (JSON.stringify(current.pan) !== JSON.stringify(saved.pan)) deltaPayload.pan = current.pan;
+      if (current.zoom !== saved.zoom) deltaPayload.zoom = current.zoom;
+      if (current.boardCode !== saved.boardCode) deltaPayload.code = current.boardCode;
+      if (current.boardLanguage !== saved.boardLanguage) deltaPayload.language = current.boardLanguage;
+
+      let res = await fetch(`${API_BASE}/boards/${boardId}`, {
+        method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
           'x-board-password': localPassword
         },
-        body: JSON.stringify({
-          name: dataToSave.boardName,
-          cards: dataToSave.cards,
-          connections: dataToSave.connections,
-          drawings: dataToSave.drawings,
-          pan: dataToSave.pan,
-          zoom: dataToSave.zoom,
-          code: dataToSave.boardCode,
-          language: dataToSave.boardLanguage,
-        }),
+        body: JSON.stringify(deltaPayload),
       });
-      if (!res.ok) throw new Error('Failed to save board');
+
+      // If PATCH is not supported by endpoint, fallback to PUT full payload
+      if (!res.ok && (res.status === 405 || res.status === 404)) {
+        res = await fetch(`${API_BASE}/boards/${boardId}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-board-password': localPassword
+          },
+          body: JSON.stringify({
+            name: current.boardName,
+            cards: current.cards,
+            connections: current.connections,
+            drawings: current.drawings,
+            pan: current.pan,
+            zoom: current.zoom,
+            code: current.boardCode,
+            language: current.boardLanguage,
+          }),
+        });
+      }
+
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('Payload size exceeded server limit (413). Please deploy backend updates to Render or switch VITE_API_URL to localhost.');
+        }
+        throw new Error(`Failed to save board (HTTP ${res.status})`);
+      }
+
+      // Update baseline snapshot
+      lastSavedStateRef.current = JSON.parse(JSON.stringify(current));
+
       setSaveStatus('saved');
       setHasUnsavedChanges(false);
       setShouldGlowAlert(false);
@@ -310,20 +406,21 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     }
   };
 
-  // Periodic autosave running every 15 minutes
+  // Periodic autosave running every 2 minutes when auto-save is enabled
   useEffect(() => {
-    if (isInitialLoad.current || isViewOnly) return;
+    if (isInitialLoad.current || isViewOnly || !autoSaveEnabled) return;
 
     if (!lastSavedTimestamp) {
       setLastSavedTimestamp(Date.now());
     }
 
+    const intervalMs = 2 * 60 * 1000; // Default 2 minutes
     const intervalId = setInterval(() => {
       handleSaveBoard(false);
-    }, 15 * 60 * 1000); // 15 minutes
+    }, intervalMs);
 
     return () => clearInterval(intervalId);
-  }, [boardId, isViewOnly, localPassword]);
+  }, [boardId, isViewOnly, localPassword, autoSaveEnabled]);
 
   // Track actual board edits to set hasUnsavedChanges
   useEffect(() => {
@@ -1371,14 +1468,31 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         className={`canvas-container ${activeToolClass} ${isViewOnly ? 'view-only-canvas' : ''}`}
         onMouseDown={handleContainerMouseDown}
         onClick={handleCanvasClick}
-        style={{ flex: 1, position: 'relative', height: '100%' }}
+        style={{ flex: 1, position: 'relative', height: '100%', backgroundColor: boardBgColor }}
       >
-      {/* Background Minimal Grid */}
-      {gridVisible && (
+      {/* Background Canvas Grid */}
+      {gridType !== 'none' && (
         <div 
-          className="canvas-grid"
+          className={`canvas-grid grid-${gridType}`}
           style={{
-            backgroundSize: `${40 * zoom}px ${40 * zoom}px`,
+            backgroundSize: (() => {
+              switch (gridType) {
+                case 'isometric':
+                  return `${40 * zoom}px ${69.282 * zoom}px`;
+                case 'fine-dots':
+                  return `${18 * zoom}px ${18 * zoom}px`;
+                case 'honeycomb':
+                  return `${56 * zoom}px ${100 * zoom}px`;
+                case 'ruled':
+                  return `100% ${28 * zoom}px`;
+                case 'blueprint':
+                  return `${100 * zoom}px ${100 * zoom}px, ${100 * zoom}px ${100 * zoom}px, ${20 * zoom}px ${20 * zoom}px, ${20 * zoom}px ${20 * zoom}px`;
+                case 'major-grid':
+                  return `${120 * zoom}px ${120 * zoom}px, ${120 * zoom}px ${120 * zoom}px, ${24 * zoom}px ${24 * zoom}px, ${24 * zoom}px ${24 * zoom}px`;
+                default:
+                  return `${36 * zoom}px ${36 * zoom}px`;
+              }
+            })(),
             backgroundPosition: `${pan.x}px ${pan.y}px`,
           }}
         />
@@ -1392,36 +1506,36 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           onWheel={(e) => e.stopPropagation()}
           style={{ 
             position: 'absolute',
-            top: '5.5rem',
-            left: '1.5rem',
-            width: '320px', 
-            maxHeight: 'calc(100% - 8rem)', 
+            top: '3.2rem',
+            left: '0.6rem',
+            width: '230px', 
+            maxHeight: 'calc(100% - 4.5rem)', 
             display: 'flex', 
             flexDirection: 'column', 
-            border: '1px solid rgba(255, 255, 255, 0.08)', 
-            background: 'rgba(10, 10, 15, 0.85)', 
-            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.1)', 
+            background: 'rgba(10, 10, 15, 0.9)', 
+            borderRadius: '10px',
             zIndex: 1001, 
             overflow: 'hidden',
-            padding: '1.2rem',
+            padding: '0.6rem 0.7rem',
             boxSizing: 'border-box',
-            gap: '1rem',
+            gap: '0.5rem',
             backdropFilter: 'blur(20px)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+            boxShadow: '0 12px 35px rgba(0,0,0,0.6)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <List size={16} color="var(--accent-cyan)" />
+            <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 650, color: 'white', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <List size={13} color="var(--accent-cyan)" />
               Canvas Outline
             </h3>
             <button 
               onClick={() => setIsOutlineOpen(false)}
               className="board-card-delete-btn glass"
-              style={{ padding: '0.3rem', borderRadius: '8px' }}
+              style={{ padding: '0.2rem', borderRadius: '4px' }}
               title="Close Outline"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           </div>
 
@@ -1434,20 +1548,20 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.5rem 0.8rem 0.5rem 2rem',
-                borderRadius: '8px',
-                background: 'rgba(0,0,0,0.3)',
+                padding: '0.3rem 0.6rem 0.3rem 1.8rem',
+                borderRadius: '6px',
+                background: 'rgba(0,0,0,0.4)',
                 border: '1px solid rgba(255,255,255,0.1)',
                 color: 'white',
-                fontSize: '0.85rem',
+                fontSize: '0.75rem',
                 boxSizing: 'border-box'
               }}
             />
-            <Search size={14} color="var(--color-text-muted)" style={{ position: 'absolute', left: '0.7rem', top: '50%', transform: 'translateY(-50%)' }} />
+            <Search size={12} color="var(--color-text-muted)" style={{ position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)' }} />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
+                style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
               >
                 ×
               </button>
@@ -1455,9 +1569,9 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           </div>
 
           {/* Topics List */}
-          <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingRight: '0.2rem' }}>
+          <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', paddingRight: '0.1rem' }}>
             {filteredCards.length === 0 ? (
-              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
+              <div style={{ padding: '1.2rem 0.5rem', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
                 {cards.length === 0 ? 'No topics created on canvas yet.' : 'No matching topics found.'}
               </div>
             ) : (
@@ -1469,18 +1583,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                     key={card.id}
                     onClick={() => handleFocusOnCard(card)}
                     style={{
-                      padding: '0.6rem 0.8rem',
-                      borderRadius: '8px',
-                      background: isActive ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                      padding: '0.35rem 0.55rem',
+                      borderRadius: '6px',
+                      background: isActive ? 'rgba(6, 182, 212, 0.18)' : 'rgba(255, 255, 255, 0.02)',
                       border: isActive ? '1px solid var(--accent-cyan)' : '1px solid rgba(255,255,255,0.04)',
                       color: isActive ? '#cffafe' : 'var(--color-text-main)',
                       cursor: 'pointer',
-                      fontSize: '0.82rem',
+                      fontSize: '0.75rem',
                       fontWeight: isActive ? 600 : 500,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.5rem',
-                      transition: 'all 0.2s',
+                      gap: '0.4rem',
+                      transition: 'all 0.15s',
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
@@ -1490,7 +1604,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                     }}
                     title={`Focus on: ${text}`}
                   >
-                    <span style={{ fontSize: '0.9rem', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>
                       {card.type === 'image' ? '🖼️' : '📝'}
                     </span>
                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flexGrow: 1 }}>
@@ -1504,44 +1618,43 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         </div>
       )}
 
-      {/* Canvas Header */}
-      {!isFullscreen && (
-        <div 
-          className="glass canvas-header"
-          style={{
-            position: 'fixed',
-            top: '0.8rem',
-            left: '0.8rem',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.8rem',
-            padding: '0.4rem 0.8rem',
-            borderRadius: '10px',
-            background: 'rgba(10, 10, 15, 0.6)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
-          }}
-        >
+      {/* Canvas Header (Left top navbar) */}
+      <div 
+        className="glass canvas-header"
+        style={{
+          position: 'fixed',
+          top: '0.6rem',
+          left: '0.6rem',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          padding: '0.3rem 0.5rem',
+          borderRadius: '8px',
+          background: 'rgba(10, 10, 15, 0.6)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+        }}
+      >
         <button 
           className="board-card-delete-btn glass"
-          style={{ padding: '0.4rem', borderRadius: '8px' }}
+          style={{ padding: '0.35rem 0.45rem', borderRadius: '6px', display: 'flex', alignItems: 'center' }}
           onClick={onBack}
           title="Back to Dashboard"
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={13} />
         </button>
  
         <button 
           className={`board-card-delete-btn glass ${isOutlineOpen ? 'active' : ''}`}
           style={{ 
-            padding: '0.4rem 0.7rem', 
-            borderRadius: '8px',
+            padding: '0.35rem 0.55rem', 
+            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
+            gap: '0.3rem',
             background: isOutlineOpen ? 'rgba(6, 182, 212, 0.2)' : 'rgba(18, 18, 24, 0.4)',
             border: isOutlineOpen ? '1px solid var(--accent-cyan)' : '1px solid rgba(255, 255, 255, 0.05)',
             color: isOutlineOpen ? '#cffafe' : 'var(--color-text-main)'
@@ -1553,18 +1666,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           }}
           title="Toggle Canvas Outline"
         >
-          <List size={14} />
-          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Outline</span>
+          <List size={13} />
+          <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Outline</span>
         </button>
  
         <button 
           className="board-card-delete-btn glass"
           style={{ 
-            padding: '0.4rem 0.7rem', 
-            borderRadius: '8px',
+            padding: '0.35rem 0.55rem', 
+            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
+            gap: '0.3rem',
             background: 'rgba(18, 18, 24, 0.4)',
             border: '1px solid rgba(255, 255, 255, 0.05)',
             color: 'var(--color-text-main)'
@@ -1572,18 +1685,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           onClick={handleBirdsEyeView}
           title="Bird's Eye View (Zoom Out to Fit All Cards)"
         >
-          <Compass size={14} />
-          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Bird's Eye</span>
+          <Compass size={13} />
+          <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Bird's Eye</span>
         </button>
  
         <button 
           className={`board-card-delete-btn glass ${isCodePanelOpen ? 'active' : ''}`}
           style={{ 
-            padding: '0.4rem 0.7rem', 
-            borderRadius: '8px',
+            padding: '0.35rem 0.55rem', 
+            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
+            gap: '0.3rem',
             background: isCodePanelOpen ? 'rgba(99, 102, 241, 0.2)' : 'rgba(18, 18, 24, 0.4)',
             border: isCodePanelOpen ? '1px solid var(--accent-indigo)' : '1px solid rgba(255, 255, 255, 0.05)',
             color: isCodePanelOpen ? '#a5b4fc' : 'var(--color-text-main)'
@@ -1595,27 +1708,29 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           }}
           title="Toggle Code Sandbox Panel"
         >
-          <Code2 size={14} />
-          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Sandbox</span>
+          <Code2 size={13} />
+          <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Sandbox</span>
         </button>
  
         <button 
-          className="board-card-delete-btn glass"
+          className={`board-card-delete-btn glass ${isFullscreen ? 'active' : ''}`}
           style={{ 
-            padding: '0.4rem 0.7rem', 
-            borderRadius: '8px',
+            padding: '0.35rem 0.55rem', 
+            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
-            background: 'rgba(18, 18, 24, 0.4)',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            color: 'var(--color-text-main)'
+            gap: '0.3rem',
+            background: isFullscreen ? 'rgba(99, 102, 241, 0.2)' : 'rgba(18, 18, 24, 0.4)',
+            border: isFullscreen ? '1px solid var(--accent-indigo)' : '1px solid rgba(255, 255, 255, 0.05)',
+            color: isFullscreen ? '#a5b4fc' : 'var(--color-text-main)'
           }}
           onClick={handleToggleFullscreen}
-          title="Enter Fullscreen"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
         >
-          <Maximize2 size={14} />
-          <span className="header-btn-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>Fullscreen</span>
+          {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>
+            {isFullscreen ? 'Exit' : 'Fullscreen'}
+          </span>
         </button>
  
         <input 
@@ -1625,13 +1740,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           className="modal-input canvas-title-input"
           readOnly={isViewOnly}
           style={{
-            fontSize: '0.95rem',
+            fontSize: '0.85rem',
             fontWeight: 700,
             background: 'rgba(18, 18, 24, 0.4)',
             border: '1px solid rgba(255, 255, 255, 0.05)',
-            padding: '0.3rem 0.6rem',
-            borderRadius: '8px',
+            padding: '0.25rem 0.5rem',
+            borderRadius: '6px',
             fontFamily: 'var(--font-heading)',
+            maxWidth: '140px'
           }}
           title={isViewOnly ? 'Board is locked' : 'Click to rename Board'}
         />
@@ -1641,13 +1757,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             <button
               className="board-card-delete-btn glass"
               style={{
-                padding: '0.4rem 0.6rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
+                padding: '0.3rem 0.5rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
                 color: 'var(--accent-rose)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem',
+                gap: '0.3rem',
                 border: '1px solid rgba(244, 63, 94, 0.25)',
                 cursor: 'pointer'
               }}
@@ -1658,78 +1774,58 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               title="Board is locked for editing. Click to unlock."
             >
               <Lock size={11} color="var(--accent-rose)" />
-              <span className="header-btn-text">View Mode</span>
+              <span className="header-btn-text">View</span>
             </button>
           ) : (
             <div
               className="glass"
               style={{
-                padding: '0.4rem 0.6rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
+                padding: '0.3rem 0.5rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
                 color: 'var(--accent-emerald)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem',
+                gap: '0.3rem',
                 border: '1px solid rgba(16, 185, 129, 0.25)',
                 userSelect: 'none'
               }}
               title="Editing is unlocked."
             >
               <Unlock size={11} color="var(--accent-emerald)" />
-              <span className="header-btn-text">Edit Mode</span>
+              <span className="header-btn-text">Edit</span>
             </div>
           )
         )}
       </div>
-    )}
 
-    {isFullscreen && (
-      <button
-        onClick={handleToggleFullscreen}
-        className="board-card-delete-btn glass"
-        style={{
-          position: 'fixed',
-          top: '1.5rem',
-          right: '1.5rem',
-          zIndex: 1000,
-          padding: '0.6rem 1.2rem',
-          borderRadius: '16px',
-          background: 'rgba(10, 10, 15, 0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          color: 'white',
-          fontWeight: 600,
-          fontSize: '0.85rem',
-          cursor: 'pointer',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
-        }}
-      >
-        <Minimize2 size={16} />
-        <span>Exit Fullscreen</span>
-      </button>
-    )}
-
-      {/* Save Status Indicators & Manual Save Button */}
+      {/* Save Status Indicators & Compact Manual Save Button (Right top navbar) */}
       {!isViewOnly && (
         <div 
           className={`save-status-indicator glass ${shouldGlowAlert ? 'alert-glow' : ''}`} 
           style={{ 
-            gap: '0.8rem', 
-            padding: '0.4rem 0.8rem',
-            border: shouldGlowAlert ? '1px solid rgba(244, 63, 94, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)'
+            position: 'fixed',
+            top: '0.6rem',
+            right: '0.6rem',
+            gap: '0.5rem', 
+            padding: '0.3rem 0.6rem',
+            borderRadius: '8px',
+            border: shouldGlowAlert ? '1px solid rgba(244, 63, 94, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            zIndex: 1000,
+            background: 'rgba(10, 10, 15, 0.6)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <div className={`save-dot ${getSaveDotClass()}`} />
             <span 
               style={{ 
                 color: shouldGlowAlert ? 'var(--accent-rose)' : 'var(--color-text-muted)', 
-                fontSize: '0.8rem',
+                fontSize: '0.75rem',
                 fontWeight: shouldGlowAlert ? 600 : 500
               }}
             >
@@ -1740,22 +1836,21 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           <button
             onClick={() => handleSaveBoard(true)}
             style={{
-              background: shouldGlowAlert ? 'rgba(244, 63, 94, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              border: shouldGlowAlert ? '1px solid rgba(244, 63, 94, 0.6)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: saveStatus === 'saving' ? 'rgba(99, 102, 241, 0.25)' : shouldGlowAlert ? 'rgba(244, 63, 94, 0.25)' : 'rgba(255, 255, 255, 0.06)',
+              border: shouldGlowAlert ? '1px solid rgba(244, 63, 94, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '6px',
-              padding: '0.25rem 0.6rem',
-              color: shouldGlowAlert ? '#fecdd3' : 'var(--color-text-main)',
-              fontSize: '0.75rem',
+              padding: '0.3rem 0.45rem',
+              color: shouldGlowAlert ? '#fecdd3' : '#a5b4fc',
               cursor: 'pointer',
-              fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
-              transition: 'background 0.2s',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
             }}
-            title="Save changes manually"
+            title="Save changes manually (Ctrl+S)"
             className="manual-save-btn"
           >
-            Save
+            <Save size={13} className={saveStatus === 'saving' ? 'spinning' : ''} />
           </button>
         </div>
       )}
@@ -1810,13 +1905,33 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                 rose: '#f43f5e',
               };
 
-              const colorA = accentColors[cardA.color || 'slate'];
-              const colorB = accentColors[cardB.color || 'slate'];
+              const getColorForCard = (c) => {
+                if (c.badge && c.badge.color) return c.badge.color;
+                if (c.isStartNode) return '#881337';
+                if (c.color && c.color.startsWith('#')) return c.color;
+                return accentColors[c.color] || '#6366f1';
+              };
+
+              const colorA = getColorForCard(cardA);
+              const colorB = getColorForCard(cardB);
+
+              const fromSide = conn.fromSide || 'right';
+              const toSide = conn.toSide || 'left';
+              const from = getPortCoords(cardA, fromSide);
+              const to = getPortCoords(cardB, toSide);
 
               return (
-                <linearGradient key={`grad-${conn.id}`} id={`grad-${conn.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={colorA} stopOpacity="0.8" />
-                  <stop offset="100%" stopColor={colorB} stopOpacity="0.8" />
+                <linearGradient 
+                  key={`grad-${conn.id}`} 
+                  id={`grad-${conn.id}`} 
+                  gradientUnits="userSpaceOnUse"
+                  x1={from.x} 
+                  y1={from.y} 
+                  x2={to.x} 
+                  y2={to.y}
+                >
+                  <stop offset="0%" stopColor={colorA} stopOpacity="0.9" />
+                  <stop offset="100%" stopColor={colorB} stopOpacity="0.9" />
                 </linearGradient>
               );
             })}
@@ -1839,10 +1954,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               <g key={conn.id}>
                 <path
                   d={dStr}
+                  fill="none"
+                  strokeWidth="2.5"
                   className="connection-line"
                   stroke={`url(#grad-${conn.id})`}
+                  style={{ cursor: 'pointer', filter: 'drop-shadow(0 0 6px rgba(99, 102, 241, 0.4))' }}
                   onClick={() => handleDeleteConnection(conn.id)}
-                  title="Double click to delete connection"
+                  title="Click to delete connection"
                 />
               </g>
             );
@@ -1891,8 +2009,12 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onResetZoom={handleResetZoom}
-          onToggleGrid={() => setGridVisible(!gridVisible)}
-          gridVisible={gridVisible}
+          onToggleGrid={() => setGridType((prev) => (prev === 'none' ? 'dots' : 'none'))}
+          gridVisible={gridType !== 'none'}
+          gridType={gridType}
+          onChangeGridType={setGridType}
+          boardBgColor={boardBgColor}
+          onChangeBoardBgColor={setBoardBgColor}
           onClearBoard={() => setShowClearConfirm(true)}
           onBack={onBack}
           zoom={zoom}
