@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import Toolbar from './Toolbar';
-import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save } from 'lucide-react';
+import LiveCanvasBackground from './LiveCanvasBackground';
+import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -20,7 +21,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [boardBgColor, setBoardBgColor] = useState(() => {
     return localStorage.getItem('dragg-board-bg') || '#0a0a0c';
   });
-  const [selectedCardId, setSelectedCardId] = useState(null);
+  const [cursorStyle, setCursorStyle] = useState(() => {
+    return localStorage.getItem('dragg-cursor-style') || 'default';
+  });
+  const [liveBgStyle, setLiveBgStyle] = useState(() => {
+    return localStorage.getItem('dragg-live-bg') || 'none';
+  });
+
+  // Multi-card selection states
+  const [selectedCardIds, setSelectedCardIds] = useState([]);
+  const [selectionBox, setSelectionBox] = useState(null);
+  const selectedCardId = selectedCardIds[0] || null;
+  const setSelectedCardId = (id) => setSelectedCardIds(id ? [id] : []);
 
   useEffect(() => {
     localStorage.setItem('dragg-grid-type', gridType);
@@ -29,6 +41,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   useEffect(() => {
     localStorage.setItem('dragg-board-bg', boardBgColor);
   }, [boardBgColor]);
+
+  useEffect(() => {
+    localStorage.setItem('dragg-cursor-style', cursorStyle);
+  }, [cursorStyle]);
+
+  useEffect(() => {
+    localStorage.setItem('dragg-live-bg', liveBgStyle);
+  }, [liveBgStyle]);
   
   // Security locks states
   const [localPassword, setLocalPassword] = useState(boardPassword || '');
@@ -67,6 +87,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   // Custom clear board confirmation modal state
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
 
   // Global Code Sandbox state
   const [isCodePanelOpen, setIsCodePanelOpen] = useState(false);
@@ -75,6 +96,244 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [isCodeRunning, setIsCodeRunning] = useState(false);
   const [codeOutput, setCodeOutput] = useState('');
   const [codeError, setCodeError] = useState(false);
+  // Code Sandbox resizable panel state
+  const [codePanelWidth, setCodePanelWidth] = useState(() => {
+    const saved = localStorage.getItem('dragg-sandbox-width');
+    return saved ? parseInt(saved, 10) : 450;
+  });
+  const [isResizingSandbox, setIsResizingSandbox] = useState(false);
+
+  // Custom Right Click Context Menu state
+  const [contextMenu, setContextMenu] = useState(null);
+
+  // Close context menu on global click or Escape key
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setContextMenu(null);
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setContextMenu(null);
+      }
+      if (
+        document.activeElement.tagName === 'INPUT' || 
+        document.activeElement.tagName === 'TEXTAREA' ||
+        document.activeElement.hasAttribute('contenteditable') ||
+        document.activeElement.closest('[contenteditable]')
+      ) {
+        return;
+      }
+      if (e.key.toLowerCase() === 'm') {
+        setToolMode('box-select');
+        showToast('Multi-Select Marquee Tool Active');
+      } else if (e.key.toLowerCase() === 'v') {
+        setToolMode('select');
+        showToast('Select & Pan Tool Active');
+      }
+    };
+    window.addEventListener('click', handleGlobalClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const cardWrapper = e.target.closest('.card-wrapper');
+    let targetCardId = null;
+    if (cardWrapper) {
+      const cardIdAttr = cardWrapper.getAttribute('data-card-id');
+      if (cardIdAttr) {
+        targetCardId = cardIdAttr;
+        if (!selectedCardIds.includes(targetCardId)) {
+          setSelectedCardIds([targetCardId]);
+        }
+      }
+    }
+
+    const menuWidth = 230;
+    const menuHeight = (targetCardId || selectedCardIds.length > 1) ? 330 : 260;
+    
+    let x = e.clientX;
+    let y = e.clientY;
+
+    if (x + menuWidth > window.innerWidth - 12) {
+      x = window.innerWidth - menuWidth - 12;
+    }
+    if (x < 12) x = 12;
+
+    if (y + menuHeight > window.innerHeight - 12) {
+      y = window.innerHeight - menuHeight - 12;
+    }
+    if (y < 12) y = 12;
+
+    setContextMenu({
+      x,
+      y,
+      cardId: targetCardId
+    });
+  };
+
+  const handleSelectCard = (cardId, e) => {
+    if (e && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+      setSelectedCardIds((prev) => 
+        prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId]
+      );
+    } else {
+      if (!selectedCardIds.includes(cardId)) {
+        setSelectedCardIds([cardId]);
+      }
+    }
+  };
+
+  // Calculate bounding box for multi-selected cards group container
+  const selectedCards = cards.filter((c) => selectedCardIds.includes(c.id));
+  let groupBoundingBox = null;
+
+  if (selectedCards.length > 1) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedCards.forEach((c) => {
+      const w = c.width || 250;
+      const h = c.height || 200;
+      if (c.x < minX) minX = c.x;
+      if (c.y < minY) minY = c.y;
+      if (c.x + w > maxX) maxX = c.x + w;
+      if (c.y + h > maxY) maxY = c.y + h;
+    });
+
+    const padding = 12;
+    groupBoundingBox = {
+      x: minX - padding,
+      y: minY - padding,
+      width: (maxX - minX) + padding * 2,
+      height: (maxY - minY) + padding * 2,
+      cardCount: selectedCards.length
+    };
+  }
+
+  // Handle dragging the group selection container box from anywhere inside it
+  const handleGroupDragMouseDown = (e) => {
+    if (isViewOnly || e.button !== 0) return;
+    if (
+      e.target.tagName === 'INPUT' || 
+      e.target.tagName === 'TEXTAREA' || 
+      e.target.tagName === 'CANVAS' ||
+      e.target.closest('.card-content-textarea') ||
+      e.target.closest('[contenteditable]') ||
+      e.target.closest('.card-tab-btn') ||
+      e.target.closest('.card-action-btn')
+    ) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const clientStartX = e.clientX;
+    const clientStartY = e.clientY;
+
+    const initialPositions = new Map();
+    selectedCards.forEach((c) => initialPositions.set(c.id, { x: c.x, y: c.y }));
+
+    const handleMouseMove = (moveEvent) => {
+      const dx = (moveEvent.clientX - clientStartX) / zoom;
+      const dy = (moveEvent.clientY - clientStartY) / zoom;
+
+      setCards((prev) =>
+        prev.map((c) => {
+          if (initialPositions.has(c.id)) {
+            const init = initialPositions.get(c.id);
+            return { ...c, x: init.x + dx, y: init.y + dy };
+          }
+          return c;
+        })
+      );
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleDuplicateCard = (cardId) => {
+    if (isViewOnly) {
+      showToast('Board is locked. Enter password to duplicate cards.', 'error');
+      return;
+    }
+    const targetIds = (selectedCardIds.includes(cardId) && selectedCardIds.length > 1) 
+      ? selectedCardIds 
+      : [cardId];
+
+    const newCards = [];
+    const newSelectedIds = [];
+
+    targetIds.forEach((id) => {
+      const card = cards.find((c) => c.id === id);
+      if (!card) return;
+
+      let baseTitle = (card.title || 'Untitled Note').trim();
+      const copyMatch = baseTitle.match(/^(.*?)\s*\(Copy(?:\s+(\d+))?\)$/i);
+      let nextCount = 1;
+
+      if (copyMatch) {
+        baseTitle = copyMatch[1].trim();
+        const currentNum = copyMatch[2] ? parseInt(copyMatch[2], 10) : 1;
+        nextCount = currentNum + 1;
+      }
+
+      const newTitle = nextCount === 1 ? `${baseTitle} (Copy)` : `${baseTitle} (Copy ${nextCount})`;
+      const newId = Math.random().toString(36).substring(2, 11);
+
+      newCards.push({
+        ...JSON.parse(JSON.stringify(card)),
+        id: newId,
+        x: card.x + 35,
+        y: card.y + 35,
+        title: newTitle
+      });
+
+      newSelectedIds.push(newId);
+    });
+
+    if (newCards.length > 0) {
+      setCards((prev) => [...prev, ...newCards]);
+      setSelectedCardIds(newSelectedIds);
+      showToast(`${newCards.length > 1 ? `${newCards.length} cards` : 'Card'} duplicated!`);
+    }
+  };
+
+  useEffect(() => {
+    localStorage.setItem('dragg-sandbox-width', codePanelWidth);
+  }, [codePanelWidth]);
+
+  const handleSandboxResizeMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingSandbox(true);
+
+    const handleMouseMove = (moveEvent) => {
+      const newWidth = window.innerWidth - moveEvent.clientX;
+      const clampedWidth = Math.max(300, Math.min(window.innerWidth - 200, newWidth));
+      setCodePanelWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSandbox(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -107,17 +366,186 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       panRight: { key: 'd', code: 'KeyD', label: 'Pan Right' },
       zoomIn: { key: '=', code: 'Equal', label: 'Zoom In' },
       zoomOut: { key: '-', code: 'Minus', label: 'Zoom Out' },
-      selectMode: { key: 'v', code: 'KeyV', label: 'Select Mode' },
+      selectMode: { key: 'v', code: 'KeyV', label: 'Select & Pan Mode' },
+      boxSelectMode: { key: 'm', code: 'KeyM', label: 'Multi-Select Mode' },
       connectorMode: { key: 'c', code: 'KeyC', label: 'Connector Mode' },
       eraserMode: { key: 'e', code: 'KeyE', label: 'Eraser Mode' },
     };
   });
 
   const containerRef = useRef(null);
+  const justSelectedRef = useRef(false);
+  const lineNumbersRef = useRef(null);
   const isPanningRef = useRef(false);
   const saveTimeoutRef = useRef(null);
   const isInitialLoad = useRef(true);
   const lastSavedStateRef = useRef(null);
+
+  // VS Code Smart Editor keyboard logic (auto-close brackets, auto-indent, tab/shift-tab)
+  const handleEditorKeyDown = (e) => {
+    e.stopPropagation();
+    if (isViewOnly) return;
+
+    const textarea = e.target;
+    const { selectionStart, selectionEnd, value } = textarea;
+    const pairs = {
+      '(': ')',
+      '{': '}',
+      '[': ']',
+      '"': '"',
+      "'": "'",
+      '`': '`'
+    };
+
+    // 1. Auto-closing brackets and quotes
+    if (pairs[e.key]) {
+      e.preventDefault();
+      const openChar = e.key;
+      const closeChar = pairs[e.key];
+
+      if (selectionStart !== selectionEnd) {
+        // Selection wrapping: e.g. "selected text" or {selected text}
+        const selectedText = value.substring(selectionStart, selectionEnd);
+        const newValue = value.substring(0, selectionStart) + openChar + selectedText + closeChar + value.substring(selectionEnd);
+        setBoardCode(newValue);
+        setTimeout(() => {
+          textarea.selectionStart = selectionStart + 1;
+          textarea.selectionEnd = selectionEnd + 1;
+        }, 0);
+      } else {
+        // Skip duplicate closing char if typed right before existing matching char
+        const nextChar = value[selectionStart];
+        if ((openChar === '"' || openChar === "'" || openChar === '`') && nextChar === openChar) {
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+          }, 0);
+          return;
+        }
+
+        const newValue = value.substring(0, selectionStart) + openChar + closeChar + value.substring(selectionEnd);
+        setBoardCode(newValue);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+        }, 0);
+      }
+      return;
+    }
+
+    // Over-type existing closing bracket/quote if cursor is right before it
+    const closingChars = [')', '}', ']', '"', "'", '`'];
+    if (closingChars.includes(e.key) && selectionStart === selectionEnd && value[selectionStart] === e.key) {
+      e.preventDefault();
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+      }, 0);
+      return;
+    }
+
+    // 2. Smart Backspace for empty pairs e.g. (|) or {|} or [|] or "" or ''
+    if (e.key === 'Backspace' && selectionStart === selectionEnd && selectionStart > 0) {
+      const charBefore = value[selectionStart - 1];
+      const charAfter = value[selectionStart];
+      if (pairs[charBefore] && pairs[charBefore] === charAfter) {
+        e.preventDefault();
+        const newValue = value.substring(0, selectionStart - 1) + value.substring(selectionStart + 1);
+        setBoardCode(newValue);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = selectionStart - 1;
+        }, 0);
+        return;
+      }
+    }
+
+    // 3. Smart Enter (\n) with Auto Indentation and block expansion
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const lastLineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+      const currentLine = value.substring(lastLineStart, selectionStart);
+      
+      const indentMatch = currentLine.match(/^[\t ]*/);
+      let currentIndent = indentMatch ? indentMatch[0] : '';
+      
+      const charBefore = value[selectionStart - 1];
+      const charAfter = value[selectionStart];
+
+      // If pressing Enter between { and } or ( and ) or [ and ]
+      if (pairs[charBefore] && pairs[charBefore] === charAfter) {
+        const extraIndent = '  ';
+        const newValue = value.substring(0, selectionStart) + '\n' + currentIndent + extraIndent + '\n' + currentIndent + value.substring(selectionEnd);
+        setBoardCode(newValue);
+        setTimeout(() => {
+          const cursorPosition = selectionStart + 1 + currentIndent.length + extraIndent.length;
+          textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+        }, 0);
+        return;
+      }
+
+      // If line ends with opening bracket, colon, or arrow function, increase indent
+      const isBlockStart = ['{', '(', '[', ':', '->', '=>'].some(symbol => currentLine.trim().endsWith(symbol));
+      if (isBlockStart) {
+        currentIndent += '  ';
+      }
+
+      const newValue = value.substring(0, selectionStart) + '\n' + currentIndent + value.substring(selectionEnd);
+      setBoardCode(newValue);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1 + currentIndent.length;
+      }, 0);
+      return;
+    }
+
+    // 4. Tab & Shift+Tab Indentation / Outdentation
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+Tab: Outdent current line or selected block
+        const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+        const lineEnd = value.indexOf('\n', selectionEnd);
+        const actualLineEnd = lineEnd === -1 ? value.length : lineEnd;
+        const selectedText = value.substring(lineStart, actualLineEnd);
+        
+        const unindentedText = selectedText
+          .split('\n')
+          .map(line => line.startsWith('  ') ? line.substring(2) : line.startsWith('\t') ? line.substring(1) : line)
+          .join('\n');
+
+        const newValue = value.substring(0, lineStart) + unindentedText + value.substring(actualLineEnd);
+        setBoardCode(newValue);
+        setTimeout(() => {
+          textarea.selectionStart = Math.max(lineStart, selectionStart - 2);
+          textarea.selectionEnd = Math.max(lineStart, selectionEnd - (selectedText.length - unindentedText.length));
+        }, 0);
+      } else {
+        if (selectionStart !== selectionEnd) {
+          // Tab on selected multi-line block
+          const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+          const lineEnd = value.indexOf('\n', selectionEnd);
+          const actualLineEnd = lineEnd === -1 ? value.length : lineEnd;
+          const selectedText = value.substring(lineStart, actualLineEnd);
+
+          const indentedText = selectedText
+            .split('\n')
+            .map(line => '  ' + line)
+            .join('\n');
+
+          const newValue = value.substring(0, lineStart) + indentedText + value.substring(actualLineEnd);
+          setBoardCode(newValue);
+          setTimeout(() => {
+            textarea.selectionStart = selectionStart + 2;
+            textarea.selectionEnd = selectionEnd + (indentedText.length - selectedText.length);
+          }, 0);
+        } else {
+          // Single Tab at cursor
+          const newValue = value.substring(0, selectionStart) + '  ' + value.substring(selectionEnd);
+          setBoardCode(newValue);
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = selectionStart + 2;
+          }, 0);
+        }
+      }
+      return;
+    }
+  };
 
   // Touch tracking state
   const touchStateRef = useRef({
@@ -285,19 +713,17 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   };
 
   const getSaveStatusLabel = () => {
+    if (saveStatus === 'auto-saving') return 'Auto Saving...';
     if (saveStatus === 'saving') return 'Saving...';
     if (saveStatus === 'error') return 'Error (Offline)';
-    
-    const relativeTime = getRelativeTimeString(lastSavedTimestamp);
     if (hasUnsavedChanges) {
-      const timePart = relativeTime ? ` (Last saved: ${relativeTime})` : '';
-      return shouldGlowAlert ? `Unsaved (Overdue!)${timePart}` : `Unsaved Changes${timePart}`;
+      return shouldGlowAlert ? 'Unsaved (Overdue!)' : 'Unsaved Changes';
     }
-    return relativeTime ? `Last saved: ${relativeTime}` : 'Saved';
+    return 'Saved';
   };
 
   const getSaveDotClass = () => {
-    if (saveStatus === 'saving') return 'saving';
+    if (saveStatus === 'saving' || saveStatus === 'auto-saving') return 'saving';
     if (saveStatus === 'error') return 'error';
     if (hasUnsavedChanges) {
       return shouldGlowAlert ? 'error' : 'saving'; // red if overdue, amber if unsaved
@@ -308,7 +734,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   // Unified save board API function using Delta PATCH with PUT fallback
   const handleSaveBoard = async (isManual = false) => {
     if (isViewOnly) return;
-    setSaveStatus('saving');
+    setSaveStatus(isManual ? 'saving' : 'auto-saving');
     try {
       const current = latestDataRef.current;
       const saved = lastSavedStateRef.current || {
@@ -348,6 +774,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       if (current.zoom !== saved.zoom) deltaPayload.zoom = current.zoom;
       if (current.boardCode !== saved.boardCode) deltaPayload.code = current.boardCode;
       if (current.boardLanguage !== saved.boardLanguage) deltaPayload.language = current.boardLanguage;
+
+      if (Object.keys(deltaPayload).length === 0) {
+        setSaveStatus('saved');
+        setHasUnsavedChanges(false);
+        setShouldGlowAlert(false);
+        unsavedSinceRef.current = null;
+        return;
+      }
 
       let res = await fetch(`${API_BASE}/boards/${boardId}`, {
         method: 'PATCH',
@@ -406,21 +840,35 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     }
   };
 
-  // Periodic autosave running every 2 minutes when auto-save is enabled
+  // Automatic autosave: saves 10 seconds after changes when auto-save is enabled
   useEffect(() => {
-    if (isInitialLoad.current || isViewOnly || !autoSaveEnabled) return;
+    if (isInitialLoad.current || isViewOnly || !autoSaveEnabled || !hasUnsavedChanges) return;
 
     if (!lastSavedTimestamp) {
       setLastSavedTimestamp(Date.now());
     }
 
-    const intervalMs = 2 * 60 * 1000; // Default 2 minutes
+    const timerId = setTimeout(() => {
+      if (hasUnsavedChanges) {
+        handleSaveBoard(false);
+      }
+    }, 10000); // 10 seconds
+
+    return () => clearTimeout(timerId);
+  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, hasUnsavedChanges, isViewOnly, autoSaveEnabled]);
+
+  // Periodic fallback check every 10 seconds if unsaved changes exist
+  useEffect(() => {
+    if (isInitialLoad.current || isViewOnly || !autoSaveEnabled) return;
+
     const intervalId = setInterval(() => {
-      handleSaveBoard(false);
-    }, intervalMs);
+      if (hasUnsavedChanges) {
+        handleSaveBoard(false);
+      }
+    }, 10000); // 10 seconds
 
     return () => clearInterval(intervalId);
-  }, [boardId, isViewOnly, localPassword, autoSaveEnabled]);
+  }, [isViewOnly, autoSaveEnabled, hasUnsavedChanges]);
 
   // Track actual board edits to set hasUnsavedChanges
   useEffect(() => {
@@ -430,7 +878,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     if (!unsavedSinceRef.current) {
       unsavedSinceRef.current = Date.now();
     }
-  }, [cards, connections, drawings, boardName, boardCode, boardLanguage]);
+  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage]);
 
   // Monitor elapsed time since the first unsaved change and trigger alert glow if > 5 minutes
   useEffect(() => {
@@ -557,12 +1005,86 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       return;
     }
 
-    // PANNING MODE (Select mode when clicking empty canvas or view-only drag from anywhere)
+    // PANNING & MARQUEE BOX SELECTION MODES
     const isInteractive = e.target.closest('button') || e.target.closest('a') || e.target.closest('select') || e.target.closest('input:not(.card-title-input)');
     const isViewOnlyDrag = isViewOnly && !isInteractive;
     const isBgDrag = e.target === containerRef.current || e.target.className === 'canvas-grid';
 
     if (isBgDrag || isViewOnlyDrag) {
+      const clickStartX = e.clientX;
+      const clickStartY = e.clientY;
+      const canvasCoords = screenToCanvas(e.clientX, e.clientY);
+      let isMarquee = false;
+
+      // Trigger Marquee Selection if box-select mode is active, or if holding Shift key in select mode
+      const isMarqueeTrigger = toolMode === 'box-select' || (toolMode === 'select' && e.shiftKey);
+
+      if (!isViewOnly && isMarqueeTrigger && isBgDrag) {
+        if (!e.shiftKey) {
+          setSelectedCardIds([]);
+        }
+
+        const handleMouseMove = (moveEvent) => {
+          const dist = Math.hypot(moveEvent.clientX - clickStartX, moveEvent.clientY - clickStartY);
+          
+          if (!isMarquee && dist > 5) {
+            isMarquee = true;
+            isPanningRef.current = false;
+          }
+
+          if (isMarquee) {
+            const currentCoords = screenToCanvas(moveEvent.clientX, moveEvent.clientY);
+            setSelectionBox({
+              startX: canvasCoords.x,
+              startY: canvasCoords.y,
+              currentX: currentCoords.x,
+              currentY: currentCoords.y
+            });
+
+            const minX = Math.min(canvasCoords.x, currentCoords.x);
+            const maxX = Math.max(canvasCoords.x, currentCoords.x);
+            const minY = Math.min(canvasCoords.y, currentCoords.y);
+            const maxY = Math.max(canvasCoords.y, currentCoords.y);
+
+            const overlappedIds = cards.filter((c) => {
+              const w = c.width || 250;
+              const h = c.height || 200;
+              return !(c.x + w < minX || c.x > maxX || c.y + h < minY || c.y > maxY);
+            }).map((c) => c.id);
+
+            if (e.shiftKey) {
+              setSelectedCardIds((prev) => Array.from(new Set([...prev, ...overlappedIds])));
+            } else {
+              setSelectedCardIds(overlappedIds);
+            }
+          } else if (isPanningRef.current) {
+            setPan({
+              x: moveEvent.clientX - (clickStartX - pan.x),
+              y: moveEvent.clientY - (clickStartY - pan.y),
+            });
+          }
+        };
+
+        const handleMouseUp = () => {
+          if (isMarquee) {
+            justSelectedRef.current = true;
+            setTimeout(() => {
+              justSelectedRef.current = false;
+            }, 150);
+          }
+          setSelectionBox(null);
+          isPanningRef.current = false;
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        isPanningRef.current = true;
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return;
+      }
+
+      // View-Only or Non-Select mode canvas panning
       isPanningRef.current = true;
       const startX = e.clientX - pan.x;
       const startY = e.clientY - pan.y;
@@ -947,27 +1469,68 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     showToast('Image uploaded!');
   };
 
-  // Update card values
+  // Update card values (supports group movement delta when multiple cards selected)
   const handleUpdateCard = (cardId, updatedFields) => {
     if (isViewOnly) return;
-    setCards((prev) =>
-      prev.map((c) => (c.id === cardId ? { ...c, ...updatedFields } : c))
-    );
+
+    setCards((prev) => {
+      const cardToUpdate = prev.find((c) => c.id === cardId);
+      if (!cardToUpdate) return prev;
+
+      // Group movement delta calculation
+      if ('x' in updatedFields && 'y' in updatedFields && selectedCardIds.includes(cardId) && selectedCardIds.length > 1) {
+        const dx = updatedFields.x - cardToUpdate.x;
+        const dy = updatedFields.y - cardToUpdate.y;
+        if (dx === 0 && dy === 0) return prev;
+
+        return prev.map((c) => {
+          if (selectedCardIds.includes(c.id)) {
+            return { ...c, x: c.x + dx, y: c.y + dy };
+          }
+          return c;
+        });
+      }
+
+      return prev.map((c) => (c.id === cardId ? { ...c, ...updatedFields } : c));
+    });
   };
 
-  // Delete card and all its connections
+  // Delete card and all its connections (supports group deletion)
   const handleDeleteCard = (cardId) => {
     if (isViewOnly) {
       showToast('Board is locked. Enter password to delete cards.', 'error');
       return;
     }
-    setCards((prev) => prev.filter((c) => c.id !== cardId));
+    const idsToDelete = (selectedCardIds.includes(cardId) && selectedCardIds.length > 1) 
+      ? selectedCardIds 
+      : [cardId];
+
+    setCards((prev) => prev.filter((c) => !idsToDelete.includes(c.id)));
     setConnections((prev) =>
-      prev.filter((conn) => conn.fromCardId !== cardId && conn.toCardId !== cardId)
+      prev.filter((conn) => !idsToDelete.includes(conn.fromCardId) && !idsToDelete.includes(conn.toCardId))
     );
-    if (selectedCardId === cardId) setSelectedCardId(null);
-    showToast('Card deleted.');
+    setSelectedCardIds([]);
+    showToast(`${idsToDelete.length > 1 ? `${idsToDelete.length} cards` : 'Card'} deleted.`);
   };
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (
+        document.activeElement.tagName === 'INPUT' || 
+        document.activeElement.tagName === 'TEXTAREA' ||
+        document.activeElement.hasAttribute('contenteditable') ||
+        document.activeElement.closest('[contenteditable]')
+      ) {
+        return;
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedCardIds.length > 0) {
+        e.preventDefault();
+        handleDeleteCard(selectedCardIds[0]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCardIds, isViewOnly]);
 
   // Connection Drag-to-Create Mechanics
   const handleStartConnection = (cardId, fromSide, e) => {
@@ -1171,17 +1734,26 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       showToast('Board is locked. Enter password to clear canvas.', 'error');
       return;
     }
+    if (clearConfirmText.trim().toUpperCase() !== 'DELETE') {
+      showToast('Please type "DELETE" to confirm clearing the canvas.', 'error');
+      return;
+    }
     setCards([]);
     setConnections([]);
     setDrawings([]);
     setSelectedCardId(null);
-    showToast('Canvas cleared.');
     setShowClearConfirm(false);
+    setClearConfirmText('');
+    showToast('Canvas wiped clean.');
   };
 
   const handleCanvasClick = (e) => {
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      return;
+    }
     if (e.target === containerRef.current || e.target.className === 'canvas-grid') {
-      setSelectedCardId(null);
+      setSelectedCardIds([]);
     }
   };
 
@@ -1451,6 +2023,34 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   const activeToolClass = (toolMode === 'pen' || toolMode === 'ruler') ? 'tool-pen' : '';
 
+  const getCursorStyleCss = (style) => {
+    if (toolMode === 'box-select') {
+      return 'crosshair';
+    }
+    if (toolMode === 'select' && style === 'default') {
+      return 'grab';
+    }
+    switch (style) {
+      case 'crosshair':
+        return 'crosshair';
+      case 'laser':
+        return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='8' fill='%23f43f5e' fill-opacity='0.35'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%23f43f5e'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E") 12 12, auto`;
+      case 'target':
+        return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' stroke='%2306b6d4' stroke-width='1.5' fill='none'%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Cline x1='12' y1='2' x2='12' y2='6'/%3E%3Cline x1='12' y1='18' x2='12' y2='22'/%3E%3Cline x1='2' y1='12' x2='22' y2='12'/%3E%3Ccircle cx='12' cy='12' r='1' fill='%2306b6d4'/%3E%3C/svg%3E") 12 12, auto`;
+      case 'circle':
+        return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='7' fill='none' stroke='%236366f1' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23a5b4fc'/%3E%3C/svg%3E") 12 12, auto`;
+      case 'wand':
+        return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23f59e0b' stroke='%23fbbf24' stroke-width='1'%3E%3Cpolygon points='12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9'/%3E%3C/svg%3E") 12 12, auto`;
+      case 'pencil':
+        return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'/%3E%3C/svg%3E") 2 22, auto`;
+      case 'grab':
+        return 'grab';
+      case 'default':
+      default:
+        return 'grab';
+    }
+  };
+
   const filteredCards = cards.filter((card) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
@@ -1468,23 +2068,25 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         className={`canvas-container ${activeToolClass} ${isViewOnly ? 'view-only-canvas' : ''}`}
         onMouseDown={handleContainerMouseDown}
         onClick={handleCanvasClick}
-        style={{ flex: 1, position: 'relative', height: '100%', backgroundColor: boardBgColor }}
+        onContextMenu={handleContextMenu}
+        style={{
+          flex: 1,
+          position: 'relative',
+          height: '100%',
+          backgroundColor: boardBgColor,
+          cursor: getCursorStyleCss(cursorStyle)
+        }}
       >
-      {/* Background Canvas Grid */}
-      {gridType !== 'none' && (
+      {/* Live Minimal Animated Canvas Background Layer */}
+      <LiveCanvasBackground type={liveBgStyle} />
+
+      {/* Background Canvas Grid (Hidden when Live Animated BG is active) */}
+      {gridType !== 'none' && liveBgStyle === 'none' && (
         <div 
           className={`canvas-grid grid-${gridType}`}
           style={{
             backgroundSize: (() => {
               switch (gridType) {
-                case 'isometric':
-                  return `${40 * zoom}px ${69.282 * zoom}px`;
-                case 'fine-dots':
-                  return `${18 * zoom}px ${18 * zoom}px`;
-                case 'honeycomb':
-                  return `${56 * zoom}px ${100 * zoom}px`;
-                case 'ruled':
-                  return `100% ${28 * zoom}px`;
                 case 'blueprint':
                   return `${100 * zoom}px ${100 * zoom}px, ${100 * zoom}px ${100 * zoom}px, ${20 * zoom}px ${20 * zoom}px, ${20 * zoom}px ${20 * zoom}px`;
                 case 'major-grid':
@@ -1850,7 +2452,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             title="Save changes manually (Ctrl+S)"
             className="manual-save-btn"
           >
-            <Save size={13} className={saveStatus === 'saving' ? 'spinning' : ''} />
+            <Save size={13} className={(saveStatus === 'saving' || saveStatus === 'auto-saving') ? 'spinning' : ''} />
           </button>
         </div>
       )}
@@ -1986,8 +2588,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             <Card
               key={card.id}
               card={card}
-              isSelected={selectedCardId === card.id}
-              onSelect={setSelectedCardId}
+              isSelected={selectedCardIds.includes(card.id)}
+              onSelect={handleSelectCard}
               onUpdate={handleUpdateCard}
               onDelete={handleDeleteCard}
               zoom={zoom}
@@ -1999,6 +2601,74 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             />
           ))}
         </div>
+
+        {/* Marquee Drag Box Selection Overlay */}
+        {selectionBox && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${Math.min(selectionBox.startX, selectionBox.currentX)}px`,
+              top: `${Math.min(selectionBox.startY, selectionBox.currentY)}px`,
+              width: `${Math.abs(selectionBox.currentX - selectionBox.startX)}px`,
+              height: `${Math.abs(selectionBox.currentY - selectionBox.startY)}px`,
+              border: '1.5px dashed #818cf8',
+              background: 'rgba(99, 102, 241, 0.16)',
+              borderRadius: '4px',
+              pointerEvents: 'none',
+              zIndex: 1000,
+              boxShadow: '0 0 16px rgba(99, 102, 241, 0.25)'
+            }}
+          />
+        )}
+
+        {/* Group Selection Bounding Box Container */}
+        {groupBoundingBox && !isViewOnly && (
+          <div
+            className="group-selection-container"
+            onMouseDown={handleGroupDragMouseDown}
+            style={{
+              position: 'absolute',
+              left: `${groupBoundingBox.x}px`,
+              top: `${groupBoundingBox.y}px`,
+              width: `${groupBoundingBox.width}px`,
+              height: `${groupBoundingBox.height}px`,
+              border: '2px dashed var(--accent-indigo)',
+              background: 'rgba(99, 102, 241, 0.07)',
+              borderRadius: '12px',
+              zIndex: 5000,
+              cursor: 'grab',
+              boxShadow: '0 0 24px rgba(99, 102, 241, 0.25)',
+              pointerEvents: 'auto',
+              boxSizing: 'border-box',
+              userSelect: 'none'
+            }}
+            title="Drag from anywhere inside this container to move all selected cards"
+          >
+            {/* Group Header Badge */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '-26px',
+                left: '0',
+                background: 'rgba(99, 102, 241, 0.9)',
+                color: '#ffffff',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.6rem',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
+                letterSpacing: '0.3px',
+                pointerEvents: 'none'
+              }}
+            >
+              <Move size={11} />
+              <span>{groupBoundingBox.cardCount} Cards Selected (Drag to Move)</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Floating Canvas Toolbar controls */}
@@ -2015,7 +2685,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           onChangeGridType={setGridType}
           boardBgColor={boardBgColor}
           onChangeBoardBgColor={setBoardBgColor}
-          onClearBoard={() => setShowClearConfirm(true)}
+          liveBgStyle={liveBgStyle}
+          onChangeLiveBgStyle={setLiveBgStyle}
+          cursorStyle={cursorStyle}
+          onChangeCursorStyle={setCursorStyle}
+          onClearBoard={() => {
+            setClearConfirmText('');
+            setShowClearConfirm(true);
+          }}
           onBack={onBack}
           zoom={zoom}
           toolMode={toolMode}
@@ -2032,28 +2709,79 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
       {/* Custom Clear Canvas Confirmation Modal */}
       {showClearConfirm && (
-        <div className="modal-overlay" onClick={() => setShowClearConfirm(false)}>
+        <div 
+          className="modal-overlay" 
+          onClick={() => {
+            setShowClearConfirm(false);
+            setClearConfirmText('');
+          }}
+        >
           <div 
             className="modal-content glass"
             onClick={(e) => e.stopPropagation()}
+            style={{ minWidth: '320px', maxWidth: '380px' }}
           >
             <h2 className="modal-title" style={{ color: 'var(--accent-rose)' }}>Wipe Canvas Clean?</h2>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', lineHeight: '1.4' }}>
-              Are you sure you want to clear the entire whiteboard?<br/>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem', lineHeight: '1.4', marginBottom: '0.6rem' }}>
               This will permanently delete all cards, images, drawings, and connection lines on this board.
             </p>
-            <div className="modal-actions" style={{ marginTop: '0.5rem' }}>
+
+            <div style={{ margin: '0.8rem 0', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.75)', fontWeight: 500 }}>
+                To confirm, type <strong style={{ color: 'var(--accent-rose)', letterSpacing: '1px' }}>DELETE</strong> in the box below:
+              </label>
+              <input
+                type="text"
+                className="modal-input"
+                placeholder='Type "DELETE" to confirm'
+                value={clearConfirmText}
+                onChange={(e) => setClearConfirmText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && clearConfirmText.trim().toUpperCase() === 'DELETE') {
+                    handleClearBoard();
+                  }
+                }}
+                autoFocus
+                style={{
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  border: clearConfirmText.trim().toUpperCase() === 'DELETE' 
+                    ? '1px solid var(--accent-rose)' 
+                    : '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  padding: '0.5rem 0.8rem',
+                  color: '#ffffff',
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '1rem' }}>
               <button 
                 type="button" 
                 className="btn btn-secondary"
-                onClick={() => setShowClearConfirm(false)}
+                onClick={() => {
+                  setShowClearConfirm(false);
+                  setClearConfirmText('');
+                }}
               >
                 Cancel
               </button>
               <button 
                 type="button" 
                 className="btn btn-primary"
-                style={{ background: 'var(--accent-rose)', boxShadow: '0 4px 14px rgba(244, 63, 94, 0.3)' }}
+                disabled={clearConfirmText.trim().toUpperCase() !== 'DELETE'}
+                style={{ 
+                  background: clearConfirmText.trim().toUpperCase() === 'DELETE' ? 'var(--accent-rose)' : 'rgba(244, 63, 94, 0.25)', 
+                  color: clearConfirmText.trim().toUpperCase() === 'DELETE' ? '#ffffff' : 'rgba(255, 255, 255, 0.4)',
+                  cursor: clearConfirmText.trim().toUpperCase() === 'DELETE' ? 'pointer' : 'not-allowed',
+                  boxShadow: clearConfirmText.trim().toUpperCase() === 'DELETE' ? '0 4px 14px rgba(244, 63, 94, 0.4)' : 'none',
+                  border: 'none',
+                  fontWeight: 600,
+                  transition: 'all 0.2s ease'
+                }}
                 onClick={handleClearBoard}
               >
                 Wipe Clean
@@ -2186,20 +2914,52 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         className="code-split-panel glass" 
         onClick={(e) => e.stopPropagation()}
         style={{ 
-          width: '450px', 
+          width: `${codePanelWidth}px`, 
           height: '100%', 
           display: 'flex', 
           flexDirection: 'column', 
-          borderLeft: '1px solid rgba(255, 255, 255, 0.1)', 
+          borderLeft: isResizingSandbox ? '2px solid var(--accent-indigo)' : '1px solid rgba(255, 255, 255, 0.1)', 
           background: 'rgba(10, 10, 15, 0.95)', 
           zIndex: 1001, 
           overflow: 'hidden',
           padding: '1.2rem',
           boxSizing: 'border-box',
           gap: '1rem',
-          backdropFilter: 'blur(10px)'
+          backdropFilter: 'blur(10px)',
+          position: 'relative',
+          transition: isResizingSandbox ? 'none' : 'width 0.1s ease'
         }}
       >
+        {/* Left edge resize drag handle */}
+        <div
+          onMouseDown={handleSandboxResizeMouseDown}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '10px',
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: isResizingSandbox ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+            transition: 'background 0.2s'
+          }}
+          className="sandbox-resize-handle"
+          title="Drag left/right to resize Code Sandbox panel"
+        >
+          <div 
+            style={{
+              width: '2px',
+              height: '36px',
+              borderRadius: '2px',
+              background: isResizingSandbox ? 'var(--accent-indigo)' : 'rgba(255, 255, 255, 0.2)',
+              boxShadow: isResizingSandbox ? '0 0 10px var(--accent-indigo)' : 'none'
+            }}
+          />
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <Code2 size={16} color="var(--accent-indigo)" />
@@ -2255,37 +3015,65 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           </button>
         </div>
 
-        {/* Editor TextArea */}
-        <div style={{ flexGrow: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* Editor TextArea Container with Line Numbers Gutter */}
+        <div 
+          style={{ 
+            flexGrow: 1, 
+            position: 'relative', 
+            display: 'flex', 
+            background: 'rgba(0,0,0,0.5)', 
+            border: '1px solid rgba(255,255,255,0.1)', 
+            borderRadius: '8px', 
+            overflow: 'hidden' 
+          }}
+        >
+          {/* Synchronized Line Numbers Column */}
+          <div 
+            ref={lineNumbersRef}
+            style={{
+              padding: '0.8rem 0.5rem',
+              background: 'rgba(0, 0, 0, 0.4)',
+              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+              color: 'rgba(255, 255, 255, 0.35)',
+              fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', 'Courier New', monospace",
+              fontSize: '0.82rem',
+              lineHeight: '1.45',
+              textAlign: 'right',
+              userSelect: 'none',
+              minWidth: '36px',
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}
+          >
+            {Array.from({ length: Math.max(1, (boardCode || getPlaceholderForLang(boardLanguage)).split('\n').length) }, (_, i) => (
+              <div key={i + 1}>{i + 1}</div>
+            ))}
+          </div>
+
           <textarea
             className="card-code-textarea"
             value={boardCode}
             onChange={(e) => setBoardCode(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Tab') {
-                e.preventDefault();
-                const textarea = e.target;
-                const { selectionStart, selectionEnd, value } = textarea;
-                const newValue = value.substring(0, selectionStart) + '  ' + value.substring(selectionEnd);
-                setBoardCode(newValue);
-                setTimeout(() => {
-                  textarea.selectionStart = textarea.selectionEnd = selectionStart + 2;
-                }, 0);
+            onKeyDown={handleEditorKeyDown}
+            onScroll={(e) => {
+              if (lineNumbersRef.current) {
+                lineNumbersRef.current.scrollTop = e.target.scrollTop;
               }
             }}
             placeholder={getPlaceholderForLang(boardLanguage)}
             style={{ 
               flexGrow: 1, 
               width: '100%', 
-              fontFamily: 'Courier New, monospace', 
-              fontSize: '0.85rem', 
-              background: 'rgba(0,0,0,0.4)', 
-              border: '1px solid rgba(255,255,255,0.08)', 
-              borderRadius: '8px', 
-              color: '#e4e4e7', 
+              fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', 'Courier New', monospace", 
+              fontSize: '0.82rem', 
+              lineHeight: '1.45',
+              background: 'transparent', 
+              border: 'none', 
+              outline: 'none',
+              color: '#f4f4f7', 
               padding: '0.8rem',
-              resize: 'none'
+              resize: 'none',
+              tabSize: 2
             }}
             readOnly={isViewOnly}
           />
@@ -2307,6 +3095,206 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               {codeOutput}
             </pre>
           </div>
+        )}
+      </div>
+    )}
+
+    {/* Custom Right-Click Context Menu Bar */}
+    {contextMenu && (
+      <div
+        className="context-menu-popover glass"
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{
+          position: 'fixed',
+          left: `${contextMenu.x}px`,
+          top: `${contextMenu.y}px`,
+          zIndex: 99999,
+          background: 'rgba(14, 14, 22, 0.95)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: '12px',
+          padding: '6px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3px',
+          boxShadow: '0 14px 40px rgba(0, 0, 0, 0.75)',
+          minWidth: '200px',
+          animation: 'contextMenuScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+        }}
+      >
+        {selectedCardIds.length > 1 ? (
+          <>
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Multi-Card Selection ({selectedCardIds.length})
+            </span>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                handleDuplicateCard(selectedCardIds[0]);
+                setContextMenu(null);
+              }}
+            >
+              <Copy size={13} color="#a5b4fc" />
+              <span>Copy / Duplicate All Selected</span>
+              <span className="context-shortcut">Ctrl+D</span>
+            </button>
+
+            {!isViewOnly && (
+              <button
+                className="context-menu-item danger"
+                onClick={() => {
+                  handleDeleteCard(selectedCardIds[0]);
+                  setContextMenu(null);
+                }}
+              >
+                <Trash2 size={13} color="var(--accent-rose)" />
+                <span>Delete All Selected ({selectedCardIds.length})</span>
+                <span className="context-shortcut">Del</span>
+              </button>
+            )}
+
+            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
+          </>
+        ) : contextMenu.cardId ? (
+          <>
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Card Actions
+            </span>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                handleDuplicateCard(contextMenu.cardId);
+                setContextMenu(null);
+              }}
+            >
+              <Copy size={13} color="#a5b4fc" />
+              <span>Duplicate Card</span>
+              <span className="context-shortcut">Ctrl+D</span>
+            </button>
+
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                const card = cards.find((c) => c.id === contextMenu.cardId);
+                if (card) handleFocusOnCard(card);
+                setContextMenu(null);
+              }}
+            >
+              <Target size={13} color="#cffafe" />
+              <span>Focus / Zoom Card</span>
+            </button>
+
+            {!isViewOnly && (
+              <button
+                className="context-menu-item danger"
+                onClick={() => {
+                  handleDeleteCard(contextMenu.cardId);
+                  setContextMenu(null);
+                }}
+              >
+                <Trash2 size={13} color="var(--accent-rose)" />
+                <span>Delete Card</span>
+              </button>
+            )}
+
+            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
+          </>
+        ) : null}
+
+        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Canvas Actions
+        </span>
+
+        {!isViewOnly && (
+          <>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                handleAddCard();
+                setContextMenu(null);
+              }}
+            >
+              <Plus size={13} color="var(--accent-cyan)" />
+              <span>New Card</span>
+            </button>
+
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                handleAddHeadingCard();
+                setContextMenu(null);
+              }}
+            >
+              <Type size={13} color="var(--accent-indigo)" />
+              <span>New Heading</span>
+            </button>
+
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                const fileInput = document.querySelector('input[type="file"]');
+                if (fileInput) fileInput.click();
+                setContextMenu(null);
+              }}
+            >
+              <ImageIcon size={13} color="var(--accent-emerald)" />
+              <span>Upload Image...</span>
+            </button>
+
+            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
+          </>
+        )}
+
+        <button
+          className="context-menu-item"
+          onClick={() => {
+            setIsCodePanelOpen(!isCodePanelOpen);
+            setContextMenu(null);
+          }}
+        >
+          <Code2 size={13} color="var(--accent-amber)" />
+          <span>{isCodePanelOpen ? 'Close Code Sandbox' : 'Open Code Sandbox'}</span>
+        </button>
+
+        <button
+          className="context-menu-item"
+          onClick={() => {
+            setIsOutlineOpen(!isOutlineOpen);
+            setContextMenu(null);
+          }}
+        >
+          <List size={13} color="var(--accent-cyan)" />
+          <span>{isOutlineOpen ? 'Close Outline' : 'Open Outline'}</span>
+        </button>
+
+        <button
+          className="context-menu-item"
+          onClick={() => {
+            handleResetZoom();
+            setContextMenu(null);
+          }}
+        >
+          <Maximize2 size={13} />
+          <span>Recenter Viewport</span>
+        </button>
+
+        {!isViewOnly && (
+          <>
+            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
+            <button
+              className="context-menu-item danger"
+              onClick={() => {
+                setClearConfirmText('');
+                setShowClearConfirm(true);
+                setContextMenu(null);
+              }}
+            >
+              <Trash2 size={13} color="var(--accent-rose)" />
+              <span>Wipe Canvas Clean</span>
+            </button>
+          </>
         )}
       </div>
     )}

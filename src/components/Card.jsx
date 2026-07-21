@@ -498,7 +498,7 @@ function Card({
     if (e.button !== 0) return;
     
     if (isViewOnly) {
-      onSelect(card.id);
+      onSelect(card.id, e);
       return;
     }
     
@@ -517,11 +517,12 @@ function Card({
       e.target.closest('.card-sketch-toolbar') ||
       e.target.closest('.notes-format-bar')
     ) {
+      onSelect(card.id, e);
       return;
     }
 
     e.stopPropagation();
-    onSelect(card.id);
+    onSelect(card.id, e);
 
     // If connector mode is active, dragging from anywhere on the card draws a connection line
     if (toolMode === 'connector') {
@@ -909,6 +910,7 @@ function Card({
   return (
     <div
       ref={cardRef}
+      data-card-id={card.id}
       className={`card-wrapper ${currentThemeClass} ${isSelected ? 'selected' : ''} ${card.completed ? 'completed' : ''} ${isBlinking ? 'blinking' : ''} ${isHeadingCard ? 'is-heading-card' : ''} ${hasBodyContent ? '' : 'no-body-content'} ${card.isStartNode ? 'is-start-node' : ''}`}
       style={{
         transform: `translate(${card.x}px, ${card.y}px)`,
@@ -1224,16 +1226,6 @@ function Card({
                 <Check size={14} color={card.completed ? "var(--accent-emerald)" : "var(--color-text-muted)"} />
               </button>
             )}
-            {/* Quick Connector Button */}
-            {!isViewOnly && !isHeadingCard && features.connectPorts && (
-              <button
-                className="card-action-btn"
-                onMouseDown={handleQuickConnectMouseDown}
-                title="Drag to Connect Card"
-              >
-                <Link2 size={14} color="var(--accent-cyan)" />
-              </button>
-            )}
             {!isViewOnly && (features.colorPalette || isHeadingCard) && (
               <button
                 className="card-action-btn"
@@ -1260,15 +1252,6 @@ function Card({
                   size={13} 
                   color={(card.badge?.color || (card.isStartNode ? '#881337' : (card.color?.startsWith('#') ? card.color : null))) || "var(--color-text-muted)"} 
                 />
-              </button>
-            )}
-            {!isViewOnly && (
-              <button
-                className="card-action-btn delete"
-                onClick={() => onDelete(card.id)}
-                title="Delete Card"
-              >
-                <Trash2 size={14} />
               </button>
             )}
           </div>
@@ -1326,7 +1309,7 @@ function Card({
               {activeMode === 'notes' && features.notes && (
                 <>
                   {/* Notes Customization Format Bar */}
-                  <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: isViewOnly ? 'none' : 'flex' }}>
+                  <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: (!isViewOnly && isSelected) ? 'flex' : 'none' }}>
                     {/* Font Family Select */}
                     <select
                       className="format-select font-family-select"
@@ -1466,6 +1449,7 @@ function Card({
                     placeholder="Write notes and concepts..."
                     onClick={(e) => {
                       e.stopPropagation();
+                      onSelect(card.id);
                       if (isViewOnly) return;
                       if (e.target.classList.contains('notes-callout-delete')) {
                         e.preventDefault();

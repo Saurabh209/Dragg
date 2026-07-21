@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -19,6 +19,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   const [boardToDelete, setBoardToDelete] = useState(null);
   const [deletePassword, setDeletePassword] = useState('');
   const [showImportHelpModal, setShowImportHelpModal] = useState(false);
+  const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
   const [forceViewOnlyPending, setForceViewOnlyPending] = useState(false);
 
   // Keyboard control settings
@@ -472,30 +473,51 @@ function Dashboard({ onSelectBoard, showToast }) {
 
   return (
     <div className="dashboard-container">
-      {/* Controls settings button in the top-right corner of the container */}
-      <button 
-        className="dashboard-settings-btn glass"
-        onClick={() => setIsSettingsOpen(true)}
-        title="Control Settings"
-        style={{
-          position: 'absolute',
-          top: '2rem',
-          right: '2rem',
-          padding: '0.6rem 0.9rem',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.4rem',
-          color: 'var(--color-text-main)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          background: 'rgba(255, 255, 255, 0.03)',
-          zIndex: 10
-        }}
-      >
-        <Settings size={15} />
-        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Controls</span>
-      </button>
+      {/* Header Action Buttons in top-right corner */}
+      <div style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', gap: '0.6rem', zIndex: 10 }}>
+        <button 
+          className="whats-new-btn glass"
+          onClick={() => setShowWhatsNewModal(true)}
+          title="What's New in Dragg"
+          style={{
+            padding: '0.6rem 0.9rem',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            color: '#ffffff',
+            border: '1px solid rgba(168, 85, 247, 0.4)',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))',
+            boxShadow: '0 4px 15px rgba(168, 85, 247, 0.25)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Sparkles size={15} style={{ color: '#c084fc' }} />
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.3px' }}>What's New</span>
+          <span style={{ fontSize: '0.65rem', fontWeight: 800, background: '#a855f7', color: '#ffffff', padding: '1px 6px', borderRadius: '10px', marginLeft: '2px' }}>NEW</span>
+        </button>
+
+        <button 
+          className="dashboard-settings-btn glass"
+          onClick={() => setIsSettingsOpen(true)}
+          title="Control Settings"
+          style={{
+            padding: '0.6rem 0.9rem',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            color: 'var(--color-text-main)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: 'rgba(255, 255, 255, 0.03)'
+          }}
+        >
+          <Settings size={15} />
+          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Controls</span>
+        </button>
+      </div>
 
       <header className="dashboard-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', marginBottom: '0.5rem' }}>
@@ -1147,6 +1169,168 @@ Stores user profiles and real-time logs.`}
                 style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', background: 'var(--accent-indigo)' }}
               >
                 Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* What's New Modal */}
+      {showWhatsNewModal && (
+        <div 
+          className="modal-overlay"
+          onClick={() => setShowWhatsNewModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '1rem'
+          }}
+        >
+          <div 
+            className="modal-container glass"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '650px',
+              width: '100%',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              background: 'rgba(15, 15, 25, 0.95)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              borderRadius: '16px',
+              padding: '1.8rem',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.2rem',
+              color: '#ffffff'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sparkles size={20} style={{ color: '#ffffff' }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, background: 'linear-gradient(90deg, #ffffff, #a5b4fc, #e9d5ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    What's New in Dragg 🚀
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                    Latest Feature Release & Canvas Power Tools
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWhatsNewModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Feature Cards Grid */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+              {/* Feature 1: Custom Right-Click Context Menu */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <MousePointerClick size={18} style={{ color: '#a855f7' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#e9d5ff' }}>
+                    Custom Right-Click Context Menu
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Right-click anywhere on cards or blank canvas to trigger a glassmorphic context menu with screen-clamped viewport bounds and ultra-high stacking.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', border: '1px solid rgba(168, 85, 247, 0.4)', color: '#e9d5ff', padding: '2px 8px', borderRadius: '6px' }}>
+                    Smart Copy (Copy 1, 2, 3...)
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.4)', color: '#a5b4fc', padding: '2px 8px', borderRadius: '6px' }}>
+                    Batch Copy (Ctrl+D)
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(244, 63, 94, 0.2)', border: '1px solid rgba(244, 63, 94, 0.4)', color: '#fecdd3', padding: '2px 8px', borderRadius: '6px' }}>
+                    Batch Delete (Del)
+                  </span>
+                </div>
+              </div>
+
+              {/* Feature 2: Multi-Card Marquee Select & Group Movement */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <BoxSelect size={18} style={{ color: '#38bdf8' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#bae6fd' }}>
+                    Multi-Card Box Select & Group Movement
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Switch to <strong>Box Select Mode (M)</strong> to draw a marquee selection rectangle over multiple cards. Selected cards lock inside a glassmorphic container with a floating drag handle!
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#bae6fd', padding: '2px 8px', borderRadius: '6px' }}>
+                    Marquee Drag Box
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
+                    Group Drag Handle
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(234, 179, 8, 0.2)', border: '1px solid rgba(234, 179, 8, 0.4)', color: '#fef08a', padding: '2px 8px', borderRadius: '6px' }}>
+                    Shortcut: M
+                  </span>
+                </div>
+              </div>
+
+              {/* Feature 3: Live Animated Canvas Backgrounds */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Palette size={18} style={{ color: '#34d399' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#a7f3d0' }}>
+                    Live Minimal Animated Backgrounds Tab
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Choose from dedicated live animated backgrounds including <strong>Interactive Particles</strong>, <strong>Constellation Mesh</strong>, <strong>Floating Stardust</strong>, and <strong>Matrix Rain Stream</strong>.
+                </p>
+              </div>
+
+              {/* Feature 4: Curated Clean Grid System & Toned-Down Opacity */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Layers size={18} style={{ color: '#818cf8' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#c7d2fe' }}>
+                    Curated Minimalist Grid & Opacity Toning
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Retained essential high-utility grid patterns (Dotted, Graph, Major/Minor Grid, Blueprint, Blank) with toned-down major grid line opacity for zero distraction.
+                </p>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.6rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <button
+                onClick={() => setShowWhatsNewModal(false)}
+                className="btn btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  padding: '0.5rem 1.2rem',
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+                }}
+              >
+                Explore Features ✨
               </button>
             </div>
           </div>
