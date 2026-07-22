@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette } from 'lucide-react';
+import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette, Compass, Type } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -493,7 +493,6 @@ function Dashboard({ onSelectBoard, showToast }) {
             transition: 'all 0.2s ease'
           }}
         >
-          <Sparkles size={15} style={{ color: '#c084fc' }} />
           <span style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.3px' }}>What's New</span>
           <span style={{ fontSize: '0.65rem', fontWeight: 800, background: '#a855f7', color: '#ffffff', padding: '1px 6px', borderRadius: '10px', marginLeft: '2px' }}>NEW</span>
         </button>
@@ -633,7 +632,8 @@ function Dashboard({ onSelectBoard, showToast }) {
         <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{boards.length} total</span>
       </div>
 
-      {loading ? (
+      <div className="dashboard-grid-wrapper">
+        {loading ? (
         <div style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>Loading boards...</div>
       ) : (
         <div className="dashboard-grid">
@@ -759,6 +759,7 @@ function Dashboard({ onSelectBoard, showToast }) {
           )}
         </div>
       )}
+      </div>
 
       {/* Create Board Modal */}
       {isModalOpen && (
@@ -1214,9 +1215,6 @@ Stores user profiles and real-time logs.`}
             {/* Modal Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <div style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Sparkles size={20} style={{ color: '#ffffff' }} />
-                </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, background: 'linear-gradient(90deg, #ffffff, #a5b4fc, #e9d5ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     What's New in Dragg 🚀
@@ -1311,6 +1309,61 @@ Stores user profiles and real-time logs.`}
                 </p>
               </div>
 
+              {/* Feature 5: Dynamic Connection Path Highlight */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Compass size={18} style={{ color: 'var(--accent-cyan)' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#e0f2fe' }}>
+                    Dynamic Connection Path Highlight
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Right-click a card and select <strong>View Connection Path</strong> to animate downstream connections from left to right in a slow, cinematic cascade. Unrelated elements dim and lock automatically to prevent accidental edits.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(6, 182, 212, 0.2)', border: '1px solid rgba(6, 182, 212, 0.4)', color: 'var(--accent-cyan)', padding: '2px 8px', borderRadius: '6px' }}>
+                    Wave Cascade Delays
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', border: '1px solid rgba(168, 85, 247, 0.4)', color: '#e9d5ff', padding: '2px 8px', borderRadius: '6px' }}>
+                    Highlight Persistence
+                  </span>
+                </div>
+              </div>
+
+              {/* Feature 6: Group Lock Propagation */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Lock size={18} style={{ color: 'var(--accent-rose)' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#ffe4e6' }}>
+                    Group Lock Propagation
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Locking a group container propagates locks to all children. Child cards render as locked and block any edit actions, deletion, resizing, or dragging.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(244, 63, 94, 0.2)', border: '1px solid rgba(244, 63, 94, 0.4)', color: 'var(--accent-rose)', padding: '2px 8px', borderRadius: '6px' }}>
+                    Lock Propagation
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
+                    Multi-Selection Guard
+                  </span>
+                </div>
+              </div>
+
+              {/* Feature 7: Text Formatting Toolbar Global Toggle */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Type size={18} style={{ color: '#a5b4fc' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#c7d2fe' }}>
+                    Rich Text Format Global Toggle
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Enable or disable card text editing formatting bars globally using the Type toggle button in the top-right toolbar. Keep your note-taking view distraction-free!
+                </p>
+              </div>
+
             </div>
 
             {/* Modal Footer */}
@@ -1330,7 +1383,7 @@ Stores user profiles and real-time logs.`}
                   boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
                 }}
               >
-                Explore Features ✨
+                Explore Features
               </button>
             </div>
           </div>

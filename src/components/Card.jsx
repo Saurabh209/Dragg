@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw, GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag } from 'lucide-react';
+import { Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw, GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag, Lock, Unlock } from 'lucide-react';
 
 const COLORS = [
   { name: 'slate', value: 'var(--accent-slate)' },
@@ -88,10 +88,24 @@ function Card({
   zoom, 
   onStartConnection,
   toolMode, // 'select' | 'connector' | 'pen' | 'ruler'
-  isViewOnly = false,
+  isViewOnly: isViewOnlyGlobal = false,
   isBlinking = false,
-  onDoubleClickFocus
+  onDoubleClickFocus,
+  isDimmed = false,
+  highlightDelay = 0,
+  isParentGroupLocked = false,
+  showTextFormatBar = false
 }) {
+  const isViewOnly = isViewOnlyGlobal || card.isLocked || isParentGroupLocked || isDimmed;
+  const dimStyle = isDimmed ? {
+    opacity: 0.18,
+    filter: 'grayscale(80%) blur(0.5px)',
+    pointerEvents: 'none',
+    transition: 'opacity 0.8s ease, filter 0.8s ease',
+  } : {
+    transition: 'opacity 0.8s ease, filter 0.8s ease',
+    transitionDelay: highlightDelay ? `${highlightDelay}ms` : '0ms'
+  };
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBadgePicker, setShowBadgePicker] = useState(false);
   const [isEditingTag, setIsEditingTag] = useState(false);
@@ -917,6 +931,7 @@ function Card({
         width: card.width || 250,
         height: card.height || 200,
         ...customCardStyle,
+        ...dimStyle
       }}
       onMouseDown={handleMouseDown}
       onWheel={(e) => e.stopPropagation()}
@@ -1170,6 +1185,15 @@ function Card({
             <GripHorizontal size={14} />
           </div>
           <input
+            type="checkbox"
+            className="card-header-checkbox"
+            checked={!!card.showInSearch}
+            onChange={(e) => onUpdate(card.id, { showInSearch: e.target.checked })}
+            onClick={(e) => e.stopPropagation()}
+            disabled={isViewOnly}
+            title={card.showInSearch ? "Included in Canvas Outline (Click to exclude)" : "Excluded from Canvas Outline (Click to include)"}
+          />
+          <input
             type="text"
             className="card-title-input"
             value={card.title}
@@ -1254,6 +1278,27 @@ function Card({
                 />
               </button>
             )}
+            {!isViewOnlyGlobal && (
+              <button
+                className={`card-action-btn lock-btn ${(card.isLocked || isParentGroupLocked) ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isParentGroupLocked) return;
+                  onUpdate(card.id, { isLocked: !card.isLocked });
+                }}
+                title={isParentGroupLocked ? "Locked by parent group" : (card.isLocked ? "Unlock Card" : "Lock Card")}
+                style={{ 
+                  opacity: (card.isLocked || isParentGroupLocked) ? 1 : 0.6,
+                  cursor: isParentGroupLocked ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {(card.isLocked || isParentGroupLocked) ? (
+                  <Lock size={13} color="var(--accent-rose)" />
+                ) : (
+                  <Unlock size={13} color="var(--color-text-muted)" />
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1309,7 +1354,7 @@ function Card({
               {activeMode === 'notes' && features.notes && (
                 <>
                   {/* Notes Customization Format Bar */}
-                  <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: (!isViewOnly && isSelected) ? 'flex' : 'none' }}>
+                  <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: (!isViewOnly && isSelected && showTextFormatBar) ? 'flex' : 'none' }}>
                     {/* Font Family Select */}
                     <select
                       className="format-select font-family-select"

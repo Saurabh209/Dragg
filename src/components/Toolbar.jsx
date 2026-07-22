@@ -51,7 +51,9 @@ function Toolbar({
   onChangePenColor,
   penThickness,
   onChangePenThickness,
-  isViewOnly = false
+  isViewOnly = false,
+  showTextFormatBar = false,
+  onToggleTextFormatBar
 }) {
   const fileInputRef = useRef(null);
   const gridMenuRef = useRef(null);
@@ -137,13 +139,6 @@ function Toolbar({
             title="Multi-Card Marquee Select (M)"
           >
             <BoxSelect size={17} />
-          </button>
-          <button 
-            className={`toolbar-btn ${toolMode === 'eraser' ? 'active' : ''}`}
-            onClick={() => onChangeToolMode('eraser')}
-            title="Stroke Eraser (E)"
-          >
-            <Eraser size={17} />
           </button>
         </div>
 
@@ -499,6 +494,21 @@ function Toolbar({
               </div>
             )}
           </div>
+
+          {/* Text Formatting Toolbar Toggle */}
+          <button 
+            className={`toolbar-btn ${showTextFormatBar ? 'active' : ''}`} 
+            onClick={onToggleTextFormatBar}
+            title={showTextFormatBar ? "Hide Text Formatting Menu" : "Show Text Formatting Menu"}
+            style={{
+              color: showTextFormatBar ? 'var(--accent-cyan)' : 'inherit',
+              border: showTextFormatBar ? '1px solid var(--accent-cyan)' : '1px solid transparent',
+              background: showTextFormatBar ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+              borderRadius: '6px'
+            }}
+          >
+            <Type size={16} />
+          </button>
         </div>
 
         <div className="toolbar-divider" />

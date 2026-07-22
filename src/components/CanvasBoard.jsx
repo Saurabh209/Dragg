@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import Toolbar from './Toolbar';
 import LiveCanvasBackground from './LiveCanvasBackground';
-import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box } from 'lucide-react';
 import { toPng } from 'html-to-image';
+import GroupContainer from './GroupContainer';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -156,7 +157,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     }
 
     const menuWidth = 230;
-    const menuHeight = (targetCardId || selectedCardIds.length > 1) ? 330 : 260;
+    const menuHeight = 450; // Conservative max height to ensure all options fit in viewport
     
     let x = e.clientX;
     let y = e.clientY;
@@ -167,7 +168,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     if (x < 12) x = 12;
 
     if (y + menuHeight > window.innerHeight - 12) {
-      y = window.innerHeight - menuHeight - 12;
+      y = Math.max(12, window.innerHeight - menuHeight - 12);
     }
     if (y < 12) y = 12;
 
@@ -246,6 +247,11 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       setCards((prev) =>
         prev.map((c) => {
           if (initialPositions.has(c.id)) {
+            // Block moving if card is individually locked or its parent group is locked
+            const parentGroup = c.groupId ? prev.find(g => g.id === c.groupId) : null;
+            const isCardLocked = c.isLocked || (parentGroup && parentGroup.isLocked);
+            if (isCardLocked) return c;
+
             const init = initialPositions.get(c.id);
             return { ...c, x: init.x + dx, y: init.y + dy };
           }
@@ -335,13 +341,61 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Fullscreen state
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
   // Canvas Outline Sidebar state
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [outlineFilter, setOutlineFilter] = useState(() => {
+    return localStorage.getItem('dragg-outline-filter') || 'all';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dragg-outline-filter', outlineFilter);
+  }, [outlineFilter]);
+
   const [blinkingCardId, setBlinkingCardId] = useState(null);
+  const [showTextFormatBar, setShowTextFormatBar] = useState(false);
+
+  // Connection Path Highlight states
+  const [highlightedPathStartCardId, setHighlightedPathStartCardId] = useState('');
+  const [highlightedPathCardDepths, setHighlightedPathCardDepths] = useState(null); // Map of cardId -> depth
+  const [highlightedPathConnectionIds, setHighlightedPathConnectionIds] = useState(null); // Array of connectionIds
+
+  useEffect(() => {
+    if (!highlightedPathStartCardId) {
+      setHighlightedPathCardDepths(null);
+      setHighlightedPathConnectionIds(null);
+      return;
+    }
+
+    const depths = {};
+    depths[highlightedPathStartCardId] = 0;
+
+    const pathConnectionIds = new Set();
+    const queue = [highlightedPathStartCardId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      const currentDepth = depths[currentId];
+
+      const outgoing = connections.filter(conn => 
+        (conn.fromCardId === currentId && conn.fromSide === 'right') ||
+        (conn.toCardId === currentId && conn.toSide === 'right')
+      );
+
+      outgoing.forEach(conn => {
+        pathConnectionIds.add(conn.id);
+        const targetId = conn.fromCardId === currentId ? conn.toCardId : conn.fromCardId;
+        
+        if (depths[targetId] === undefined) {
+          depths[targetId] = currentDepth + 1;
+          queue.push(targetId);
+        }
+      });
+    }
+
+    setHighlightedPathCardDepths(depths);
+    setHighlightedPathConnectionIds(Array.from(pathConnectionIds));
+  }, [highlightedPathStartCardId, cards, connections]);
 
   // Card customization modal state
   const [showAddCardModal, setShowAddCardModal] = useState(false);
@@ -559,50 +613,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   const isViewOnly = forceViewOnly || (protectionMode !== 'none' && !localPassword);
 
-  // Fullscreen event listeners
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(
-        !!(document.fullscreenElement ||
-           document.webkitFullscreenElement ||
-           document.mozFullScreenElement ||
-           document.msFullscreenElement)
-      );
-    };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
-
-  const handleToggleFullscreen = () => {
-    if (!isFullscreen) {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if (elem.webkitRequestFullscreen) { /* Safari */
-        elem.webkitRequestFullscreen();
-      } else if (elem.msRequestFullscreen) { /* IE11 */
-        elem.msRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) { /* Safari */
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) { /* IE11 */
-        document.msExitFullscreen();
-      }
-    }
-  };
 
   // Load board details
   useEffect(() => {
@@ -625,6 +636,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         setProtectionMode(data.protectionMode || 'none');
         setBoardCode(data.code || '');
         setBoardLanguage(data.language || 'javascript');
+        setHighlightedPathStartCardId(data.highlightedPathStartCardId || '');
 
         lastSavedStateRef.current = {
           boardName: data.name || 'Untitled Board',
@@ -634,7 +646,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           pan: JSON.parse(JSON.stringify(data.pan || { x: 100, y: 100 })),
           zoom: data.zoom || 1.0,
           boardCode: data.code || '',
-          boardLanguage: data.language || 'javascript'
+          boardLanguage: data.language || 'javascript',
+          highlightedPathStartCardId: data.highlightedPathStartCardId || ''
         };
         
         setTimeout(() => {
@@ -691,10 +704,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   }, [keybindings]);
 
   // Reference to track the latest canvas state variables to avoid resetting intervals
-  const latestDataRef = useRef({ boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage });
+  const latestDataRef = useRef({ boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId });
   useEffect(() => {
-    latestDataRef.current = { boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage };
-  }, [boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage]);
+    latestDataRef.current = { boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId };
+  }, [boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId]);
 
   const getRelativeTimeString = (timestamp) => {
     if (!timestamp) return '';
@@ -738,7 +751,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     try {
       const current = latestDataRef.current;
       const saved = lastSavedStateRef.current || {
-        boardName: '', cards: [], connections: [], drawings: [], pan: { x: 0, y: 0 }, zoom: 1, boardCode: '', boardLanguage: ''
+        boardName: '', cards: [], connections: [], drawings: [], pan: { x: 0, y: 0 }, zoom: 1, boardCode: '', boardLanguage: '', highlightedPathStartCardId: ''
       };
 
       const savedCardMap = new Map((saved.cards || []).map(c => [c.id, JSON.stringify(c)]));
@@ -774,6 +787,9 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       if (current.zoom !== saved.zoom) deltaPayload.zoom = current.zoom;
       if (current.boardCode !== saved.boardCode) deltaPayload.code = current.boardCode;
       if (current.boardLanguage !== saved.boardLanguage) deltaPayload.language = current.boardLanguage;
+      if (current.highlightedPathStartCardId !== saved.highlightedPathStartCardId) {
+        deltaPayload.highlightedPathStartCardId = current.highlightedPathStartCardId;
+      }
 
       if (Object.keys(deltaPayload).length === 0) {
         setSaveStatus('saved');
@@ -809,6 +825,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             zoom: current.zoom,
             code: current.boardCode,
             language: current.boardLanguage,
+            highlightedPathStartCardId: current.highlightedPathStartCardId
           }),
         });
       }
@@ -855,7 +872,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     }, 10000); // 10 seconds
 
     return () => clearTimeout(timerId);
-  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, hasUnsavedChanges, isViewOnly, autoSaveEnabled]);
+  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, hasUnsavedChanges, isViewOnly, autoSaveEnabled]);
 
   // Periodic fallback check every 10 seconds if unsaved changes exist
   useEffect(() => {
@@ -878,7 +895,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     if (!unsavedSinceRef.current) {
       unsavedSinceRef.current = Date.now();
     }
-  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage]);
+  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId]);
 
   // Monitor elapsed time since the first unsaved change and trigger alert glow if > 5 minutes
   useEffect(() => {
@@ -1477,6 +1494,29 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       const cardToUpdate = prev.find((c) => c.id === cardId);
       if (!cardToUpdate) return prev;
 
+      // Group Dissolution
+      if (updatedFields.dissolveGroup) {
+        setTimeout(() => showToast('Group dissolved successfully.'), 50);
+        return prev
+          .filter((c) => c.id !== cardId)
+          .map((c) => (c.groupId === cardId ? { ...c, groupId: '' } : c));
+      }
+
+      // Group entity synchronous movement (dragging any card in group or group container moves everything)
+      const groupId = cardToUpdate.groupId || (cardToUpdate.type === 'group' ? cardToUpdate.id : null);
+      if ('x' in updatedFields && 'y' in updatedFields && groupId) {
+        const dx = updatedFields.x - cardToUpdate.x;
+        const dy = updatedFields.y - cardToUpdate.y;
+        if (dx === 0 && dy === 0) return prev;
+
+        return prev.map((c) => {
+          if (c.groupId === groupId || c.id === groupId) {
+            return { ...c, x: c.x + dx, y: c.y + dy };
+          }
+          return c;
+        });
+      }
+
       // Group movement delta calculation
       if ('x' in updatedFields && 'y' in updatedFields && selectedCardIds.includes(cardId) && selectedCardIds.length > 1) {
         const dx = updatedFields.x - cardToUpdate.x;
@@ -1505,13 +1545,90 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       ? selectedCardIds 
       : [cardId];
 
+    const lockedCards = cards.filter(c => {
+      if (!idsToDelete.includes(c.id)) return false;
+      if (c.isLocked) return true;
+      if (c.groupId) {
+        const parentGroup = cards.find(g => g.id === c.groupId);
+        if (parentGroup && parentGroup.isLocked) return true;
+      }
+      return false;
+    });
+    if (lockedCards.length > 0) {
+      showToast('Cannot delete locked items or items inside locked groups. Unlock them first.', 'error');
+      return;
+    }
+
     setCards((prev) => prev.filter((c) => !idsToDelete.includes(c.id)));
     setConnections((prev) =>
       prev.filter((conn) => !idsToDelete.includes(conn.fromCardId) && !idsToDelete.includes(conn.toCardId))
     );
     setSelectedCardIds([]);
-    showToast(`${idsToDelete.length > 1 ? `${idsToDelete.length} cards` : 'Card'} deleted.`);
+    showToast(`${idsToDelete.length > 1 ? `${idsToDelete.length} items` : 'Item'} deleted.`);
   };
+
+  const handleGroupSelectedCards = () => {
+    if (selectedCardIds.length < 2) return;
+
+    const selectedNormalCards = cards.filter(c => selectedCardIds.includes(c.id) && c.type !== 'group');
+    if (selectedNormalCards.length < 2) {
+      showToast('Need at least 2 non-group cards to group.', 'error');
+      return;
+    }
+
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+
+    selectedNormalCards.forEach(c => {
+      const w = c.width || 250;
+      const h = c.height || 200;
+      if (c.x < minX) minX = c.x;
+      if (c.y < minY) minY = c.y;
+      if (c.x + w > maxX) maxX = c.x + w;
+      if (c.y + h > maxY) maxY = c.y + h;
+    });
+
+    const padding = 35;
+    const groupX = minX - padding;
+    const groupY = minY - padding;
+    const groupWidth = (maxX - minX) + 2 * padding;
+    const groupHeight = (maxY - minY) + 2 * padding;
+
+    const newGroupId = `group-${Date.now()}`;
+    const newGroupCard = {
+      id: newGroupId,
+      x: groupX,
+      y: groupY,
+      width: groupWidth,
+      height: groupHeight,
+      title: 'New Group',
+      content: '',
+      color: 'slate',
+      type: 'group',
+      showInSearch: false,
+      isLocked: false,
+      groupId: ''
+    };
+
+    setCards(prev => {
+      const updatedNormalCards = prev.map(c => {
+        if (selectedCardIds.includes(c.id) && c.type !== 'group') {
+          return { ...c, groupId: newGroupId };
+        }
+        return c;
+      });
+      return [newGroupCard, ...updatedNormalCards];
+    });
+
+    setSelectedCardIds([]);
+    showToast('Cards grouped successfully.');
+  };
+
+  const handleViewPath = (startCardId) => {
+    setHighlightedPathStartCardId(startCardId);
+    showToast('Highlighting downstream path...');
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (
@@ -1558,7 +1675,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       const canvasCoords = screenToCanvas(upEvent.clientX, upEvent.clientY);
       
       const targetCard = cards.find((c) => {
-        if (c.id === cardId) return false;
+        if (c.id === cardId || c.type === 'group') return false;
         const w = c.width || 250;
         const h = c.height || 200;
         return (
@@ -2052,6 +2169,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   };
 
   const filteredCards = cards.filter((card) => {
+    if (outlineFilter === 'assigned' && !card.showInSearch) return false;
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     const titleMatch = card.title?.toLowerCase().includes(query);
@@ -2170,11 +2288,72 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             )}
           </div>
 
+          {/* Search Scope Filter */}
+          <div style={{ 
+            display: 'flex', 
+            background: 'rgba(0,0,0,0.3)', 
+            borderRadius: '6px', 
+            padding: '2px', 
+            border: '1px solid rgba(255,255,255,0.06)' 
+          }}>
+            <button
+              onClick={() => setOutlineFilter('assigned')}
+              style={{
+                flex: 1,
+                padding: '0.3rem',
+                border: 'none',
+                borderRadius: '4px',
+                background: outlineFilter === 'assigned' ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                color: outlineFilter === 'assigned' ? 'var(--accent-cyan)' : 'var(--color-text-muted)',
+                fontSize: '0.7rem',
+                fontWeight: outlineFilter === 'assigned' ? 'bold' : 'normal',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.25rem'
+              }}
+            >
+              <Check size={11} /> Assigned ({cards.filter(c => c.showInSearch).length})
+            </button>
+            <button
+              onClick={() => setOutlineFilter('all')}
+              style={{
+                flex: 1,
+                padding: '0.3rem',
+                border: 'none',
+                borderRadius: '4px',
+                background: outlineFilter === 'all' ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                color: outlineFilter === 'all' ? '#fff' : 'var(--color-text-muted)',
+                fontSize: '0.7rem',
+                fontWeight: outlineFilter === 'all' ? 'bold' : 'normal',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.25rem'
+              }}
+            >
+              <List size={11} /> All Cards ({cards.length})
+            </button>
+          </div>
+
           {/* Topics List */}
           <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', paddingRight: '0.1rem' }}>
             {filteredCards.length === 0 ? (
               <div style={{ padding: '1.2rem 0.5rem', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
-                {cards.length === 0 ? 'No topics created on canvas yet.' : 'No matching topics found.'}
+                {outlineFilter === 'assigned' && cards.filter(c => c.showInSearch).length === 0 ? (
+                  <div>
+                    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--color-text-main)', fontWeight: 550 }}>No cards assigned to outline.</p>
+                    <p style={{ margin: 0, fontSize: '0.68rem', opacity: 0.8, lineHeight: 1.4 }}>Check the box in any card's header to assign it to this outline.</p>
+                  </div>
+                ) : cards.length === 0 ? (
+                  'No topics created on canvas yet.'
+                ) : (
+                  'No matching topics found.'
+                )}
               </div>
             ) : (
               filteredCards.map((card) => {
@@ -2313,27 +2492,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           <Code2 size={13} />
           <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Sandbox</span>
         </button>
- 
-        <button 
-          className={`board-card-delete-btn glass ${isFullscreen ? 'active' : ''}`}
-          style={{ 
-            padding: '0.35rem 0.55rem', 
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-            background: isFullscreen ? 'rgba(99, 102, 241, 0.2)' : 'rgba(18, 18, 24, 0.4)',
-            border: isFullscreen ? '1px solid var(--accent-indigo)' : '1px solid rgba(255, 255, 255, 0.05)',
-            color: isFullscreen ? '#a5b4fc' : 'var(--color-text-main)'
-          }}
-          onClick={handleToggleFullscreen}
-          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-        >
-          {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-          <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>
-            {isFullscreen ? 'Exit' : 'Fullscreen'}
-          </span>
-        </button>
+   
  
         <input 
           type="text"
@@ -2434,6 +2593,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               {getSaveStatusLabel()}
             </span>
           </div>
+
 
           <button
             onClick={() => handleSaveBoard(true)}
@@ -2552,8 +2712,22 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             const to = getPortCoords(cardB, toSide);
             const dStr = makeCurvePath(from, to, fromSide, toSide);
 
+            const isConnDimmed = highlightedPathConnectionIds && !highlightedPathConnectionIds.includes(conn.id);
+            const sourceDepth = highlightedPathCardDepths 
+              ? (highlightedPathCardDepths[conn.fromCardId] !== undefined ? highlightedPathCardDepths[conn.fromCardId] : highlightedPathCardDepths[conn.toCardId])
+              : undefined;
+            const connDelay = sourceDepth !== undefined ? (sourceDepth * 600 + 300) : 0;
+
             return (
-              <g key={conn.id}>
+              <g 
+                key={conn.id}
+                style={{
+                  opacity: isConnDimmed ? 0.08 : 1,
+                  transition: 'opacity 0.8s ease',
+                  transitionDelay: !isConnDimmed && sourceDepth !== undefined ? `${connDelay}ms` : '0ms',
+                  pointerEvents: isConnDimmed ? 'none' : 'auto'
+                }}
+              >
                 <path
                   d={dStr}
                   fill="none"
@@ -2584,22 +2758,58 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
         {/* DOM Cards rendering Layer */}
         <div className="canvas-elements-layer">
-          {cards.map((card) => (
-            <Card
-              key={card.id}
-              card={card}
-              isSelected={selectedCardIds.includes(card.id)}
-              onSelect={handleSelectCard}
-              onUpdate={handleUpdateCard}
-              onDelete={handleDeleteCard}
-              zoom={zoom}
-              onStartConnection={handleStartConnection}
-              toolMode={isViewOnly ? 'select' : toolMode}
-              isViewOnly={isViewOnly}
-              isBlinking={blinkingCardId === card.id}
-              onDoubleClickFocus={handleFocusOnCard}
-            />
-          ))}
+          {/* Render Group Containers first (background layer) */}
+          {cards.filter((c) => c.type === 'group').map((group) => {
+            const childCards = cards.filter(c => c.groupId === group.id);
+            const childDepths = childCards.map(c => highlightedPathCardDepths?.[c.id]).filter(d => d !== undefined);
+            const isGroupDimmed = highlightedPathCardDepths && childDepths.length === 0;
+            const groupDelay = childDepths.length > 0 ? Math.min(...childDepths) * 600 : 0;
+
+            return (
+              <GroupContainer
+                key={group.id}
+                group={group}
+                isSelected={selectedCardIds.includes(group.id)}
+                onSelect={handleSelectCard}
+                onUpdate={handleUpdateCard}
+                zoom={zoom}
+                isViewOnly={isViewOnly}
+                isDimmed={isGroupDimmed}
+                highlightDelay={groupDelay}
+              />
+            );
+          })}
+
+          {/* Render standard cards (foreground layer) */}
+          {cards.filter((c) => c.type !== 'group').map((card) => {
+            const cardDepth = highlightedPathCardDepths?.[card.id];
+            const isCardDimmed = highlightedPathCardDepths && cardDepth === undefined;
+            const cardDelay = cardDepth !== undefined ? cardDepth * 600 : 0;
+
+            const parentGroup = card.groupId ? cards.find(c => c.id === card.groupId) : null;
+            const isParentGroupLocked = parentGroup ? parentGroup.isLocked : false;
+
+            return (
+              <Card
+                key={card.id}
+                card={card}
+                isSelected={selectedCardIds.includes(card.id)}
+                onSelect={handleSelectCard}
+                onUpdate={handleUpdateCard}
+                onDelete={handleDeleteCard}
+                zoom={zoom}
+                onStartConnection={handleStartConnection}
+                toolMode={isViewOnly ? 'select' : toolMode}
+                isViewOnly={isViewOnly}
+                isBlinking={blinkingCardId === card.id}
+                onDoubleClickFocus={handleFocusOnCard}
+                isDimmed={isCardDimmed}
+                highlightDelay={cardDelay}
+                isParentGroupLocked={isParentGroupLocked}
+                showTextFormatBar={showTextFormatBar}
+              />
+            );
+          })}
         </div>
 
         {/* Marquee Drag Box Selection Overlay */}
@@ -2704,6 +2914,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           penThickness={penThickness}
           onChangePenThickness={setPenThickness}
           isViewOnly={isViewOnly}
+          showTextFormatBar={showTextFormatBar}
+          onToggleTextFormatBar={() => setShowTextFormatBar(!showTextFormatBar)}
         />
       )}
 
@@ -3099,6 +3311,53 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       </div>
     )}
 
+    {/* Floating Overlay for Path Highlight */}
+    {highlightedPathCardDepths && (
+      <div style={{
+        position: 'absolute',
+        top: '4.5rem',
+        right: '1.25rem',
+        background: 'rgba(10, 10, 15, 0.95)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid var(--accent-cyan)',
+        borderRadius: '24px',
+        padding: '0.4rem 1rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.65rem',
+        zIndex: 10005,
+        boxShadow: '0 8px 32px rgba(6, 182, 212, 0.3)',
+        color: '#fff',
+        fontSize: '0.78rem',
+        fontWeight: 600,
+        pointerEvents: 'auto'
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <Compass size={14} color="var(--accent-cyan)" />
+          Path Highlight Active ({Object.keys(highlightedPathCardDepths).length} cards)
+        </span>
+        <button 
+          onClick={() => {
+            setHighlightedPathStartCardId('');
+          }}
+          className="board-card-delete-btn glass"
+          style={{
+            borderRadius: '50%',
+            width: '18px',
+            height: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: 0
+          }}
+          title="Clear Highlight"
+        >
+          <X size={10} color="var(--accent-rose)" />
+        </button>
+      </div>
+    )}
+
     {/* Custom Right-Click Context Menu Bar */}
     {contextMenu && (
       <div
@@ -3142,17 +3401,53 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             </button>
 
             {!isViewOnly && (
-              <button
-                className="context-menu-item danger"
-                onClick={() => {
-                  handleDeleteCard(selectedCardIds[0]);
-                  setContextMenu(null);
-                }}
-              >
-                <Trash2 size={13} color="var(--accent-rose)" />
-                <span>Delete All Selected ({selectedCardIds.length})</span>
-                <span className="context-shortcut">Del</span>
-              </button>
+              <>
+                <button
+                  className="context-menu-item danger"
+                  onClick={() => {
+                    handleDeleteCard(selectedCardIds[0]);
+                    setContextMenu(null);
+                  }}
+                >
+                  <Trash2 size={13} color="var(--accent-rose)" />
+                  <span>Delete All Selected ({selectedCardIds.length})</span>
+                  <span className="context-shortcut">Del</span>
+                </button>
+                <button
+                  className="context-menu-item"
+                  onClick={() => {
+                    handleGroupSelectedCards();
+                    setContextMenu(null);
+                  }}
+                >
+                  <Box size={13} color="var(--accent-cyan)" />
+                  <span>Group Selected Cards</span>
+                </button>
+                <button
+                  className="context-menu-item"
+                  onClick={() => {
+                    setCards(prev => prev.map(c => selectedCardIds.includes(c.id) ? { ...c, isLocked: true } : c));
+                    setSelectedCardIds([]);
+                    setContextMenu(null);
+                    showToast(`Locked ${selectedCardIds.length} cards.`);
+                  }}
+                >
+                  <Lock size={13} color="var(--accent-rose)" />
+                  <span>Lock Selected Cards</span>
+                </button>
+                <button
+                  className="context-menu-item"
+                  onClick={() => {
+                    setCards(prev => prev.map(c => selectedCardIds.includes(c.id) ? { ...c, isLocked: false } : c));
+                    setSelectedCardIds([]);
+                    setContextMenu(null);
+                    showToast(`Unlocked ${selectedCardIds.length} cards.`);
+                  }}
+                >
+                  <Unlock size={13} color="var(--color-text-muted)" />
+                  <span>Unlock Selected Cards</span>
+                </button>
+              </>
             )}
 
             <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
@@ -3186,6 +3481,25 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               <span>Focus / Zoom Card</span>
             </button>
 
+            {(() => {
+              const card = cards.find((c) => c.id === contextMenu.cardId);
+              if (card && card.type !== 'group') {
+                return (
+                  <button
+                    className="context-menu-item"
+                    onClick={() => {
+                      handleViewPath(contextMenu.cardId);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Compass size={13} color="var(--accent-cyan)" />
+                    <span>View Connection Path</span>
+                  </button>
+                );
+              }
+              return null;
+            })()}
+
             {!isViewOnly && (
               <button
                 className="context-menu-item danger"
@@ -3198,6 +3512,87 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                 <span>Delete Card</span>
               </button>
             )}
+
+            {(() => {
+              const card = cards.find(c => c.id === contextMenu.cardId);
+              if (!card) return null;
+              
+              if (card.type === 'group') {
+                return (
+                  <>
+                    <button
+                      className="context-menu-item"
+                      onClick={() => {
+                        handleUpdateCard(card.id, { dissolveGroup: true });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <X size={13} color="var(--accent-rose)" />
+                      <span>Ungroup / Dissolve Group</span>
+                    </button>
+                    {!isViewOnly && (
+                      <button
+                        className="context-menu-item"
+                        onClick={() => {
+                          handleUpdateCard(card.id, { isLocked: !card.isLocked });
+                          setContextMenu(null);
+                        }}
+                      >
+                        {card.isLocked ? (
+                          <>
+                            <Unlock size={13} color="var(--color-text-muted)" />
+                            <span>Unlock Group Container</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock size={13} color="var(--accent-rose)" />
+                            <span>Lock Group Container</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </>
+                );
+              }
+
+              return (
+                <>
+                  {!isViewOnly && (
+                    <button
+                      className="context-menu-item"
+                      onClick={() => {
+                        handleUpdateCard(card.id, { isLocked: !card.isLocked });
+                        setContextMenu(null);
+                      }}
+                    >
+                      {card.isLocked ? (
+                        <>
+                          <Unlock size={13} color="var(--color-text-muted)" />
+                          <span>Unlock Card</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={13} color="var(--accent-rose)" />
+                          <span>Lock Card</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {card.groupId && !isViewOnly && (
+                    <button
+                      className="context-menu-item"
+                      onClick={() => {
+                        handleUpdateCard(card.id, { groupId: '' });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <X size={13} color="var(--color-text-muted)" />
+                      <span>Remove from Group</span>
+                    </button>
+                  )}
+                </>
+              );
+            })()}
 
             <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
           </>
@@ -3245,6 +3640,19 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
             <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
           </>
+        )}
+
+        {highlightedPathCardDepths && (
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              setHighlightedPathStartCardId('');
+              setContextMenu(null);
+            }}
+          >
+            <X size={13} color="var(--accent-rose)" />
+            <span>Clear Path Highlight</span>
+          </button>
         )}
 
         <button
