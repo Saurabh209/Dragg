@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
-import Toolbar from './Toolbar';
+import LeftVerticalToolbar from './LeftVerticalToolbar';
 import LiveCanvasBackground from './LiveCanvasBackground';
-import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2 } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import GroupContainer from './GroupContainer';
 
@@ -214,15 +214,27 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     const saved = localStorage.getItem('dragg-grid-type');
     return saved || 'dots';
   });
-  const [boardBgColor, setBoardBgColor] = useState(() => {
-    return localStorage.getItem('dragg-board-bg') || '#0a0a0c';
-  });
+  const [boardBgColor, setBoardBgColor] = useState('#0a0a0c');
   const [cursorStyle, setCursorStyle] = useState(() => {
     return localStorage.getItem('dragg-cursor-style') || 'default';
   });
-  const [liveBgStyle, setLiveBgStyle] = useState(() => {
-    return localStorage.getItem('dragg-live-bg') || 'none';
+  const [liveBgStyle, setLiveBgStyle] = useState('none');
+  const [toolbarSettings, setToolbarSettings] = useState({
+    position: { x: 20, y: 200 },
+    orientation: 'vertical'
   });
+  const [stylePresets, setStylePresets] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dragg-style-presets');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dragg-style-presets', JSON.stringify(stylePresets));
+  }, [stylePresets]);
 
   const debugRouting = false;
 
@@ -237,19 +249,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   }, [gridType]);
 
   useEffect(() => {
-    localStorage.setItem('dragg-board-bg', boardBgColor);
-  }, [boardBgColor]);
-
-  useEffect(() => {
     localStorage.setItem('dragg-cursor-style', cursorStyle);
   }, [cursorStyle]);
 
-  useEffect(() => {
-    localStorage.setItem('dragg-live-bg', liveBgStyle);
-  }, [liveBgStyle]);
-
   // Security locks states
-  const [localPassword, setLocalPassword] = useState(boardPassword || '');
+  const [localPassword, setLocalPassword] = useState(() => {
+    return boardPassword || localStorage.getItem(`dragg-board-pass-${boardId}`) || '';
+  });
   const [protectionMode, setProtectionMode] = useState('none');
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockPassInput, setUnlockPassInput] = useState('');
@@ -827,6 +833,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             'x-board-password': localPassword
           }
         });
+        if (res.status === 401) {
+          setShowUnlockModal(true);
+          return;
+        }
         if (!res.ok) throw new Error('Board not found');
         const data = await res.json();
 
@@ -840,6 +850,16 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         setBoardCode(data.code || '');
         setBoardLanguage(data.language || 'javascript');
         setHighlightedPathStartCardId(data.highlightedPathStartCardId || '');
+        setBoardBgColor(data.boardBgColor || '#0a0a0c');
+        setLiveBgStyle(data.liveBgStyle || 'none');
+        if (data.toolbarSettings) {
+          setToolbarSettings(data.toolbarSettings);
+        } else {
+          setToolbarSettings({
+            position: { x: 20, y: window.innerHeight / 2 - 200 },
+            orientation: 'vertical'
+          });
+        }
 
         lastSavedStateRef.current = {
           boardName: data.name || 'Untitled Board',
@@ -850,7 +870,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           zoom: data.zoom || 1.0,
           boardCode: data.code || '',
           boardLanguage: data.language || 'javascript',
-          highlightedPathStartCardId: data.highlightedPathStartCardId || ''
+          highlightedPathStartCardId: data.highlightedPathStartCardId || '',
+          boardBgColor: data.boardBgColor || '#0a0a0c',
+          liveBgStyle: data.liveBgStyle || 'none',
+          toolbarSettings: data.toolbarSettings || { position: { x: 20, y: window.innerHeight / 2 - 200 }, orientation: 'vertical' }
         };
 
         setTimeout(() => {
@@ -864,7 +887,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       }
     };
     fetchBoardDetails();
-  }, [boardId]);
+  }, [boardId, localPassword]);
 
   // Keyboard shortcut listener for modes and canvas pan/zoom remapped keys
   useEffect(() => {
@@ -900,17 +923,81 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         setPan(prev => ({ ...prev, x: prev.x + 35 }));
       } else if (code === keybindings.panRight.code) {
         setPan(prev => ({ ...prev, x: prev.x - 35 }));
+      } else {
+        // Check custom keymapping presets (case-insensitive)
+        const pressedKey = e.key.toLowerCase();
+        const matchedPreset = stylePresets.find(p => p.key.toLowerCase() === pressedKey);
+        if (matchedPreset) {
+          // Check if preset is already active
+          const isCurrentlyActive = 
+            (!matchedPreset.toolMode || toolMode === matchedPreset.toolMode) &&
+            (!matchedPreset.connectorStyle || activeConnectorStyle === matchedPreset.connectorStyle) &&
+            (!matchedPreset.connectorAnimation || activeConnectorAnimation === matchedPreset.connectorAnimation) &&
+            (!matchedPreset.connectorColor || activeConnectorColor === matchedPreset.connectorColor) &&
+            (!matchedPreset.connectorThickness || activeConnectorThickness === matchedPreset.connectorThickness) &&
+            (!matchedPreset.penColor || penColor === matchedPreset.penColor) &&
+            (!matchedPreset.penThickness || penThickness === matchedPreset.penThickness) &&
+            (!matchedPreset.gridType || gridType === matchedPreset.gridType) &&
+            (!matchedPreset.boardBgColor || boardBgColor === matchedPreset.boardBgColor) &&
+            (!matchedPreset.liveBgStyle || liveBgStyle === matchedPreset.liveBgStyle) &&
+            (!matchedPreset.cursorStyle || cursorStyle === matchedPreset.cursorStyle);
+
+          if (isCurrentlyActive) {
+            // Revert back to default styles
+            setToolMode('select');
+            setActiveConnectorStyle('default');
+            setActiveConnectorAnimation('none');
+            setActiveConnectorColor('auto');
+            setActiveConnectorThickness(2.5);
+            setPenColor('#ffffff');
+            setPenThickness(5);
+            setGridType('dots');
+            setBoardBgColor('#0a0a0c');
+            setLiveBgStyle('none');
+            setCursorStyle('default');
+            showToast('Reverted styles to defaults');
+          } else {
+            // Apply preset styles
+            if (matchedPreset.toolMode) setToolMode(matchedPreset.toolMode);
+            if (matchedPreset.connectorStyle) setActiveConnectorStyle(matchedPreset.connectorStyle);
+            if (matchedPreset.connectorAnimation) setActiveConnectorAnimation(matchedPreset.connectorAnimation);
+            if (matchedPreset.connectorColor) setActiveConnectorColor(matchedPreset.connectorColor);
+            if (matchedPreset.connectorThickness) setActiveConnectorThickness(matchedPreset.connectorThickness);
+            if (matchedPreset.penColor) setPenColor(matchedPreset.penColor);
+            if (matchedPreset.penThickness) setPenThickness(matchedPreset.penThickness);
+            if (matchedPreset.gridType) setGridType(matchedPreset.gridType);
+            if (matchedPreset.boardBgColor) setBoardBgColor(matchedPreset.boardBgColor);
+            if (matchedPreset.liveBgStyle) setLiveBgStyle(matchedPreset.liveBgStyle);
+            if (matchedPreset.cursorStyle) setCursorStyle(matchedPreset.cursorStyle);
+            showToast(`Preset Active: ${matchedPreset.name}!`, 'success');
+          }
+          e.preventDefault();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [keybindings]);
+  }, [
+    keybindings, 
+    stylePresets, 
+    toolMode, 
+    activeConnectorStyle, 
+    activeConnectorAnimation, 
+    activeConnectorColor, 
+    activeConnectorThickness, 
+    penColor, 
+    penThickness, 
+    gridType, 
+    boardBgColor, 
+    liveBgStyle, 
+    cursorStyle
+  ]);
 
   // Reference to track the latest canvas state variables to avoid resetting intervals
-  const latestDataRef = useRef({ boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId });
+  const latestDataRef = useRef({ boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings });
   useEffect(() => {
-    latestDataRef.current = { boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId };
-  }, [boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId]);
+    latestDataRef.current = { boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings };
+  }, [boardName, cards, connections, drawings, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings]);
 
   const getRelativeTimeString = (timestamp) => {
     if (!timestamp) return '';
@@ -954,7 +1041,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     try {
       const current = latestDataRef.current;
       const saved = lastSavedStateRef.current || {
-        boardName: '', cards: [], connections: [], drawings: [], pan: { x: 0, y: 0 }, zoom: 1, boardCode: '', boardLanguage: '', highlightedPathStartCardId: ''
+        boardName: '', cards: [], connections: [], drawings: [], pan: { x: 0, y: 0 }, zoom: 1, boardCode: '', boardLanguage: '', highlightedPathStartCardId: '', boardBgColor: '#0a0a0c', liveBgStyle: 'none', toolbarSettings: { position: { x: 20, y: 200 }, orientation: 'vertical' }
       };
 
       const savedCardMap = new Map((saved.cards || []).map(c => [c.id, JSON.stringify(c)]));
@@ -993,6 +1080,15 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       if (current.highlightedPathStartCardId !== saved.highlightedPathStartCardId) {
         deltaPayload.highlightedPathStartCardId = current.highlightedPathStartCardId;
       }
+      if (current.boardBgColor !== saved.boardBgColor) {
+        deltaPayload.boardBgColor = current.boardBgColor;
+      }
+      if (current.liveBgStyle !== saved.liveBgStyle) {
+        deltaPayload.liveBgStyle = current.liveBgStyle;
+      }
+      if (JSON.stringify(current.toolbarSettings) !== JSON.stringify(saved.toolbarSettings)) {
+        deltaPayload.toolbarSettings = current.toolbarSettings;
+      }
 
       if (Object.keys(deltaPayload).length === 0) {
         setSaveStatus('saved');
@@ -1028,7 +1124,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             zoom: current.zoom,
             code: current.boardCode,
             language: current.boardLanguage,
-            highlightedPathStartCardId: current.highlightedPathStartCardId
+            highlightedPathStartCardId: current.highlightedPathStartCardId,
+            boardBgColor: current.boardBgColor,
+            liveBgStyle: current.liveBgStyle,
+            toolbarSettings: current.toolbarSettings
           }),
         });
       }
@@ -1075,7 +1174,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     }, 10000); // 10 seconds
 
     return () => clearTimeout(timerId);
-  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, hasUnsavedChanges, isViewOnly, autoSaveEnabled]);
+  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings, hasUnsavedChanges, isViewOnly, autoSaveEnabled]);
 
   // Periodic fallback check every 10 seconds if unsaved changes exist
   useEffect(() => {
@@ -1098,7 +1197,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     if (!unsavedSinceRef.current) {
       unsavedSinceRef.current = Date.now();
     }
-  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId]);
+  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings]);
 
   // Monitor elapsed time since the first unsaved change and trigger alert glow if > 5 minutes
   useEffect(() => {
@@ -1132,7 +1231,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   // Canvas MouseDown router
   const handleContainerMouseDown = (e) => {
-    if (e.button !== 0) return; // Left click only
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // Left click only for mouse
 
     // STROKE ERASER MODE
     if (toolMode === 'eraser') {
@@ -1163,12 +1262,12 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       };
 
       const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('pointermove', handleMouseMove);
+        document.removeEventListener('pointerup', handleMouseUp);
       };
 
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('pointermove', handleMouseMove);
+      document.addEventListener('pointerup', handleMouseUp);
       return;
     }
 
@@ -1216,12 +1315,12 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           }
           return null;
         });
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('pointermove', handleMouseMove);
+        document.removeEventListener('pointerup', handleMouseUp);
       };
 
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('pointermove', handleMouseMove);
+      document.addEventListener('pointerup', handleMouseUp);
       return;
     }
 
@@ -1294,13 +1393,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           }
           setSelectionBox(null);
           isPanningRef.current = false;
-          document.removeEventListener('mousemove', handleMouseMove);
-          document.removeEventListener('mouseup', handleMouseUp);
+          document.removeEventListener('pointermove', handleMouseMove);
+          document.removeEventListener('pointerup', handleMouseUp);
         };
 
         isPanningRef.current = true;
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('pointermove', handleMouseMove);
+        document.addEventListener('pointerup', handleMouseUp);
         return;
       }
 
@@ -1319,12 +1418,12 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
       const handleMouseUp = () => {
         isPanningRef.current = false;
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('pointermove', handleMouseMove);
+        document.removeEventListener('pointerup', handleMouseUp);
       };
 
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('pointermove', handleMouseMove);
+      document.addEventListener('pointerup', handleMouseUp);
     }
   };
 
@@ -1552,6 +1651,111 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     });
     setCardNodeLayout('four-node');
     setShowAddCardModal(true);
+  };
+
+  const handleAddCardDirect = (cardType) => {
+    if (isViewOnly) {
+      showToast('Board is locked. Enter password to add cards.', 'error');
+      return;
+    }
+
+    let width = 250;
+    let height = 180;
+    let cardMode = 'notes';
+    let type = 'note';
+    let features = {
+      notes: true,
+      sketch: false,
+      attachments: false,
+      tags: false,
+      colorPalette: true,
+      completedStatus: true,
+      connectPorts: true
+    };
+
+    if (cardType === 'minimal') {
+      width = 200;
+      height = 50;
+      features = {
+        notes: false,
+        sketch: false,
+        attachments: false,
+        tags: false,
+        colorPalette: false,
+        completedStatus: false,
+        connectPorts: true
+      };
+    } else if (cardType === 'sketch') {
+      cardMode = 'sketch';
+      features = {
+        notes: false,
+        sketch: true,
+        attachments: false,
+        tags: false,
+        colorPalette: true,
+        completedStatus: true,
+        connectPorts: true
+      };
+    } else if (cardType === 'code') {
+      cardMode = 'code';
+      features = {
+        notes: false,
+        sketch: false,
+        attachments: false,
+        tags: true,
+        colorPalette: true,
+        completedStatus: true,
+        connectPorts: true
+      };
+    } else if (cardType === 'image') {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          handleUploadImage(event.target.result);
+        };
+        reader.readAsDataURL(file);
+      };
+      fileInput.click();
+      return;
+    }
+
+    let spawnX = 150;
+    let spawnY = 150;
+
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const centerCoords = screenToCanvas(
+        rect.left + rect.width / 2 - (width * zoom) / 2,
+        rect.top + rect.height / 2 - (height * zoom) / 2
+      );
+      spawnX = centerCoords.x;
+      spawnY = centerCoords.y;
+    }
+
+    const newCard = {
+      id: Math.random().toString(36).substring(2, 11),
+      x: spawnX,
+      y: spawnY,
+      width,
+      height,
+      title: cardType === 'minimal' ? 'Minimal Card' : 'Untitled Note',
+      content: '',
+      tags: [],
+      color: 'slate',
+      type,
+      cardMode,
+      features,
+      nodeLayout: cardNodeLayout
+    };
+
+    setCards((prev) => [...prev, newCard]);
+    setSelectedCardId(newCard.id);
+    showToast(`${cardType.charAt(0).toUpperCase() + cardType.slice(1)} card added!`, 'success');
   };
 
   // Add heading-only node
@@ -2043,12 +2247,12 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       }
 
       setDraftConnection(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handleMouseMove);
+    document.addEventListener('pointerup', handleMouseUp);
   };
 
   const handleDeleteConnection = (connId) => {
@@ -2641,6 +2845,12 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const activeToolClass = (toolMode === 'pen' || toolMode === 'ruler') ? 'tool-pen' : '';
 
   const getCursorStyleCss = (style) => {
+    if (toolMode === 'pen') {
+      return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'/%3E%3C/svg%3E") 2 22, auto`;
+    }
+    if (toolMode === 'eraser') {
+      return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f43f5e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l4.3 4.3c1 1 1 2.5 0 3.4l-9.6 9.6c-1 1-2.5 1-3.4 0z'/%3E%3Cpath d='M19 21H9'/%3E%3C/svg%3E") 6 18, auto`;
+    }
     if (toolMode === 'box-select') {
       return 'crosshair';
     }
@@ -2684,7 +2894,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       <div
         ref={containerRef}
         className={`canvas-container ${activeToolClass} ${isViewOnly ? 'view-only-canvas' : ''}`}
-        onMouseDown={handleContainerMouseDown}
+        onPointerDown={handleContainerMouseDown}
         onClick={handleCanvasClick}
         onContextMenu={handleContextMenu}
         style={{
@@ -3574,14 +3784,9 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
         {/* Floating Canvas Toolbar controls */}
         {!isViewOnly && (
-          <Toolbar
-            onAddCard={handleAddCard}
-            onAddHeadingCard={handleAddHeadingCard}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onResetZoom={handleResetZoom}
-            onToggleGrid={() => setGridType((prev) => (prev === 'none' ? 'dots' : 'none'))}
-            gridVisible={gridType !== 'none'}
+          <LeftVerticalToolbar
+            onAddCardDirect={handleAddCardDirect}
+            onAddCardCustom={handleAddCard}
             gridType={gridType}
             onChangeGridType={setGridType}
             boardBgColor={boardBgColor}
@@ -3594,19 +3799,15 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               setClearConfirmText('');
               setShowClearConfirm(true);
             }}
-            onBack={onBack}
-            zoom={zoom}
+            onResetZoom={handleResetZoom}
             toolMode={toolMode}
             onChangeToolMode={setToolMode}
-            onUploadImage={handleUploadImage}
             onExportPNG={handleExportPNG}
             penColor={penColor}
             onChangePenColor={setPenColor}
             penThickness={penThickness}
             onChangePenThickness={setPenThickness}
             isViewOnly={isViewOnly}
-            showTextFormatBar={showTextFormatBar}
-            onToggleTextFormatBar={() => setShowTextFormatBar(!showTextFormatBar)}
             connectorStyle={activeConnectorStyle}
             onChangeConnectorStyle={setActiveConnectorStyle}
             connectorColor={activeConnectorColor}
@@ -3615,8 +3816,45 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             onChangeConnectorAnimation={setActiveConnectorAnimation}
             connectorThickness={activeConnectorThickness}
             onChangeConnectorThickness={setActiveConnectorThickness}
+            toolbarSettings={toolbarSettings}
+            onChangeToolbarSettings={setToolbarSettings}
+            stylePresets={stylePresets}
+            onChangeStylePresets={setStylePresets}
           />
         )}
+
+        {/* Floating Zoom Widget */}
+        <div className="zoom-floating-widget">
+          <button
+            className="zoom-widget-btn"
+            onClick={handleZoomOut}
+            title="Zoom Out"
+          >
+            <ZoomOut size={13} />
+          </button>
+          <span 
+            className="zoom-widget-indicator" 
+            onClick={handleResetZoom}
+            title="Recenter/Reset Zoom"
+          >
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            className="zoom-widget-btn"
+            onClick={handleZoomIn}
+            title="Zoom In"
+          >
+            <ZoomIn size={13} />
+          </button>
+          <button
+            className="zoom-widget-btn"
+            onClick={handleResetZoom}
+            title="Recenter Canvas"
+            style={{ marginLeft: '2px', borderLeft: '1px solid rgba(255, 255, 255, 0.08)', paddingLeft: '6px' }}
+          >
+            <Maximize size={12} />
+          </button>
+        </div>
 
         {/* Custom Clear Canvas Confirmation Modal */}
         {showClearConfirm && (

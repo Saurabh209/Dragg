@@ -510,7 +510,7 @@ function Card({
 
   // Card interaction mouse down
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     if (isViewOnly) {
       onSelect(card.id, e);
@@ -572,12 +572,12 @@ function Card({
     };
 
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handleMouseMove);
+    document.addEventListener('pointerup', handleMouseUp);
   };
 
   // 8-Way Card Resize controller
@@ -636,12 +636,12 @@ function Card({
     };
 
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handleMouseMove);
+    document.addEventListener('pointerup', handleMouseUp);
   };
 
   // Header quick connector button click handler
@@ -791,7 +791,7 @@ function Card({
   };
 
   const handleSketchMouseDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (isViewOnly) return;
     e.stopPropagation();
     isDrawingRef.current = true;
@@ -938,7 +938,7 @@ function Card({
         ...customCardStyle,
         ...dimStyle
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handleMouseDown}
       onWheel={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -1687,10 +1687,10 @@ function Card({
                   <canvas
                     ref={canvasRef}
                     className="card-sketch-canvas"
-                    onMouseDown={handleSketchMouseDown}
-                    onMouseMove={handleSketchMouseMove}
-                    onMouseUp={handleSketchMouseUpOrLeave}
-                    onMouseLeave={handleSketchMouseUpOrLeave}
+                    onPointerDown={handleSketchMouseDown}
+                    onPointerMove={handleSketchMouseMove}
+                    onPointerUp={handleSketchMouseUpOrLeave}
+                    onPointerLeave={handleSketchMouseUpOrLeave}
                   />
 
                   {/* Floating controls for internal sandbox canvas */}
@@ -1754,10 +1754,10 @@ function Card({
       {/* Corners-Only Card Resize Handles */}
       {!isViewOnly && (
         <>
-          <div className="resize-handle resize-handle-tl" onMouseDown={(e) => handleResizeMouseDown('tl', e)} />
-          <div className="resize-handle resize-handle-tr" onMouseDown={(e) => handleResizeMouseDown('tr', e)} />
-          <div className="resize-handle resize-handle-bl" onMouseDown={(e) => handleResizeMouseDown('bl', e)} />
-          <div className="resize-handle resize-handle-br" onMouseDown={(e) => handleResizeMouseDown('br', e)} />
+          <div className="resize-handle resize-handle-tl" onPointerDown={(e) => handleResizeMouseDown('tl', e)} />
+          <div className="resize-handle resize-handle-tr" onPointerDown={(e) => handleResizeMouseDown('tr', e)} />
+          <div className="resize-handle resize-handle-bl" onPointerDown={(e) => handleResizeMouseDown('bl', e)} />
+          <div className="resize-handle resize-handle-br" onPointerDown={(e) => handleResizeMouseDown('br', e)} />
         </>
       )}
 
@@ -1766,7 +1766,7 @@ function Card({
         <>
           <div
             className="connection-node node-top"
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'top', e);
             }}
@@ -1774,7 +1774,7 @@ function Card({
           />
           <div
             className="connection-node node-right"
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'right', e);
             }}
@@ -1782,7 +1782,7 @@ function Card({
           />
           <div
             className="connection-node node-bottom"
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'bottom', e);
             }}
@@ -1790,7 +1790,7 @@ function Card({
           />
           <div
             className="connection-node node-left"
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'left', e);
             }}

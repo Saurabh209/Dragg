@@ -22,7 +22,7 @@ function GroupContainer({
   };
 
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     
     // Don't drag if clicking buttons or input fields
     if (
@@ -54,12 +54,12 @@ function GroupContainer({
     };
 
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handleMouseMove);
+    document.addEventListener('pointerup', handleMouseUp);
   };
 
   const handleUngroup = (e) => {
@@ -95,12 +95,12 @@ function GroupContainer({
     };
 
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handleMouseMove);
+    document.addEventListener('pointerup', handleMouseUp);
   };
 
   const isLocked = isViewOnly || group.isLocked;
@@ -116,7 +116,7 @@ function GroupContainer({
         zIndex: 5,
         ...dimStyle
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handleMouseDown}
     >
       <div className="group-header">
         <input
@@ -155,7 +155,7 @@ function GroupContainer({
       {!isLocked && (
         <div
           className="resize-handle-se"
-          onMouseDown={handleResizeMouseDown}
+          onPointerDown={handleResizeMouseDown}
           style={{
             position: 'absolute',
             bottom: '0',
