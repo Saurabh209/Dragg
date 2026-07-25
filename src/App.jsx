@@ -11,6 +11,24 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      const match = hash.match(/^#\/board\/([a-zA-Z0-9_-]+)$/);
+      if (match) {
+        setCurrentBoardId(match[1]);
+      } else {
+        setCurrentBoardId(null);
+        setBoardPassword('');
+        setForceViewOnly(false);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(
         !!(document.fullscreenElement ||
@@ -56,7 +74,14 @@ function App() {
 
   const showToast = (message, type = 'success') => {
     const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => {
+      const filtered = prev.filter((t) => t.message !== message);
+      const updated = [...filtered, { id, message, type }];
+      if (updated.length > 3) {
+        return updated.slice(updated.length - 3);
+      }
+      return updated;
+    });
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3000);
@@ -95,9 +120,9 @@ function App() {
       {currentBoardId === null ? (
         <Dashboard 
           onSelectBoard={(boardId, password = '', viewOnly = false) => {
-            setCurrentBoardId(boardId);
             setBoardPassword(password);
             setForceViewOnly(viewOnly);
+            window.location.hash = `#/board/${boardId}`;
           }} 
           showToast={showToast} 
         />
@@ -108,9 +133,7 @@ function App() {
           onUpdatePassword={setBoardPassword}
           forceViewOnly={forceViewOnly}
           onBack={() => {
-            setCurrentBoardId(null);
-            setBoardPassword('');
-            setForceViewOnly(false);
+            window.location.hash = '';
           }} 
           showToast={showToast} 
         />

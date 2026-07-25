@@ -1364,6 +1364,45 @@ Stores user profiles and real-time logs.`}
                 </p>
               </div>
 
+              {/* Feature 8: Persistent Connection Path Tracing & Explicit Clear */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Compass size={18} style={{ color: 'var(--accent-cyan)' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#bae6fd' }}>
+                    Persistent Connection Tracing
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Downstream connections remain traced persistently while editing note text, panning the canvas, or selecting other cards. Instantly reset the tracing using the dedicated <strong>Clear Highlight</strong> toolbar button.
+                </p>
+              </div>
+
+              {/* Feature 9: Minimal Card Mode */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Type size={18} style={{ color: 'var(--accent-indigo)' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#c7d2fe' }}>
+                    Minimal Multiline Card Mode
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Create distraction-free <strong>Minimal Cards</strong> that only display text with zero borders, checkboxes, badges, or buttons. Features multiline text-wrapping with hidden scrollbars and a top-right drag handle.
+                </p>
+              </div>
+
+              {/* Feature 10: Styling & Layout Context Menu */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <Palette size={18} style={{ color: 'var(--accent-cyan)' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#a7f3d0' }}>
+                    Right-Click Styling & Layout Centralization
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Removed layout, color, and status actions from card headers to maximize canvas space. All advanced styling options—like background colors, connection snapping styles, outline assignments, and task completion—are now managed via right-click!
+                </p>
+              </div>
+
             </div>
 
             {/* Modal Footer */}

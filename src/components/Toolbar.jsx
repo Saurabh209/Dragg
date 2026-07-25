@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Plus, 
-  ZoomIn, 
-  ZoomOut, 
-  Home, 
-  Maximize, 
-  Grid, 
-  Trash2, 
-  MousePointer, 
-  Link, 
+import {
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  Home,
+  Maximize,
+  Grid,
+  Trash2,
+  MousePointer,
+  Link,
   Eraser,
-  Image, 
+  Image,
   Download,
   Type,
   Check,
@@ -53,16 +53,28 @@ function Toolbar({
   onChangePenThickness,
   isViewOnly = false,
   showTextFormatBar = false,
-  onToggleTextFormatBar
+  onToggleTextFormatBar,
+
+  // Connection customization props
+  connectorStyle = 'default',
+  onChangeConnectorStyle,
+  connectorColor = 'auto',
+  onChangeConnectorColor,
+  connectorAnimation = 'none',
+  onChangeConnectorAnimation,
+  connectorThickness = 2.5,
+  onChangeConnectorThickness
 }) {
   const fileInputRef = useRef(null);
   const gridMenuRef = useRef(null);
   const cursorMenuRef = useRef(null);
+  const connectorMenuRef = useRef(null);
   const [showGridMenu, setShowGridMenu] = useState(false);
   const [showCursorMenu, setShowCursorMenu] = useState(false);
+  const [showConnectorMenu, setShowConnectorMenu] = useState(false);
   const [bgTab, setBgTab] = useState('static'); // 'static' | 'live'
 
-  // Auto-close grid & cursor selector menus on clicking outside
+  // Auto-close grid, cursor & connector selector menus on clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showGridMenu && gridMenuRef.current && !gridMenuRef.current.contains(e.target)) {
@@ -71,15 +83,18 @@ function Toolbar({
       if (showCursorMenu && cursorMenuRef.current && !cursorMenuRef.current.contains(e.target)) {
         setShowCursorMenu(false);
       }
+      if (showConnectorMenu && connectorMenuRef.current && !connectorMenuRef.current.contains(e.target)) {
+        setShowConnectorMenu(false);
+      }
     };
 
-    if (showGridMenu || showCursorMenu) {
+    if (showGridMenu || showCursorMenu || showConnectorMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showGridMenu, showCursorMenu]);
+  }, [showGridMenu, showCursorMenu, showConnectorMenu]);
 
   const handleImageClick = () => {
     fileInputRef.current?.click();
@@ -103,7 +118,7 @@ function Toolbar({
 
 
       {/* Main Bottom Toolbar */}
-      <div 
+      <div
         className={`toolbar-container glass-toolbar ${isViewOnly ? 'view-only-locked' : ''}`}
         title={isViewOnly ? 'Whiteboard is locked' : ''}
         style={isViewOnly ? {
@@ -113,9 +128,9 @@ function Toolbar({
       >
         {/* Navigation Group */}
         <div className="toolbar-group">
-          <button 
-            className="toolbar-btn" 
-            onClick={onBack} 
+          <button
+            className="toolbar-btn"
+            onClick={onBack}
             title="Back to Dashboard"
           >
             <Home size={18} />
@@ -126,19 +141,27 @@ function Toolbar({
 
         {/* Mode Tool Group */}
         <div className="toolbar-group">
-          <button 
+          <button
             className={`toolbar-btn ${toolMode === 'select' ? 'active' : ''}`}
             onClick={() => onChangeToolMode('select')}
             title="Pan & Move Canvas (V)"
           >
             <Hand size={17} />
           </button>
-          <button 
+          <button
             className={`toolbar-btn ${toolMode === 'box-select' ? 'active' : ''}`}
             onClick={() => onChangeToolMode('box-select')}
             title="Multi-Card Marquee Select (M)"
           >
             <BoxSelect size={17} />
+          </button>
+          <button
+            className={`toolbar-btn ${toolMode === 'connector' ? 'active' : ''}`}
+            onClick={() => onChangeToolMode('connector')}
+            title="Card Connection Mode (C)"
+            style={{ color: toolMode === 'connector' ? 'var(--accent-indigo)' : 'inherit' }}
+          >
+            <Link size={17} />
           </button>
         </div>
 
@@ -146,9 +169,9 @@ function Toolbar({
 
         {/* Creation Group */}
         <div className="toolbar-group">
-          <button 
-            className="toolbar-btn" 
-            onClick={onAddCard} 
+          <button
+            className="toolbar-btn"
+            onClick={onAddCard}
             title="Create Card"
             style={{ gap: '0.4rem', padding: '0.5rem 0.8rem', color: 'var(--color-text-main)' }}
           >
@@ -156,28 +179,28 @@ function Toolbar({
             <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Card</span>
           </button>
 
-          <button 
-            className="toolbar-btn" 
-            onClick={onAddHeadingCard} 
-            title="Create Heading Node"
+          <button
+            className="toolbar-btn"
+            onClick={onAddHeadingCard}
+            title="Create Minimal Card"
             style={{ gap: '0.4rem', padding: '0.5rem 0.8rem', color: 'var(--color-text-main)' }}
           >
             <Type size={16} color="var(--accent-indigo)" />
-            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Heading</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Minimal</span>
           </button>
 
-          <button 
-            className="toolbar-btn" 
-            onClick={handleImageClick} 
+          <button
+            className="toolbar-btn"
+            onClick={handleImageClick}
             title="Upload Image Card"
           >
             <Image size={17} color="var(--accent-emerald)" />
           </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            style={{ display: 'none' }} 
-            accept="image/*" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            accept="image/*"
             onChange={handleFileChange}
           />
         </div>
@@ -186,9 +209,9 @@ function Toolbar({
 
         {/* Viewport Control Group */}
         <div className="toolbar-group">
-          <button 
-            className="toolbar-btn" 
-            onClick={onZoomOut} 
+          <button
+            className="toolbar-btn"
+            onClick={onZoomOut}
             title="Zoom Out"
           >
             <ZoomOut size={17} />
@@ -196,32 +219,32 @@ function Toolbar({
           <span className="zoom-indicator">
             {Math.round(zoom * 100)}%
           </span>
-          <button 
-            className="toolbar-btn" 
-            onClick={onZoomIn} 
+          <button
+            className="toolbar-btn"
+            onClick={onZoomIn}
             title="Zoom In"
           >
             <ZoomIn size={17} />
           </button>
-          <button 
-            className="toolbar-btn" 
-            onClick={onResetZoom} 
+          <button
+            className="toolbar-btn"
+            onClick={onResetZoom}
             title="Recenter Canvas"
           >
             <Maximize size={16} />
           </button>
           {/* Grid Type Selector Popover */}
           <div ref={gridMenuRef} style={{ position: 'relative' }}>
-            <button 
-              className={`toolbar-btn ${gridType !== 'none' ? 'active' : ''}`} 
-              onClick={() => setShowGridMenu((prev) => !prev)} 
+            <button
+              className={`toolbar-btn ${gridType !== 'none' ? 'active' : ''}`}
+              onClick={() => setShowGridMenu((prev) => !prev)}
               title="Background Grid Options"
             >
               <Grid size={16} />
             </button>
 
             {showGridMenu && (
-              <div 
+              <div
                 className="grid-popover-menu glass"
                 style={{
                   position: 'absolute',
@@ -353,7 +376,7 @@ function Toolbar({
                       ))}
 
                       {/* Custom Canvas Color Input */}
-                      <input 
+                      <input
                         type="color"
                         value={boardBgColor || '#0a0a0c'}
                         onChange={(e) => {
@@ -414,16 +437,16 @@ function Toolbar({
 
           {/* Cursor Style Selector Popover */}
           <div ref={cursorMenuRef} style={{ position: 'relative' }}>
-            <button 
-              className={`toolbar-btn ${cursorStyle !== 'default' ? 'active' : ''}`} 
-              onClick={() => setShowCursorMenu((prev) => !prev)} 
+            <button
+              className={`toolbar-btn ${cursorStyle !== 'default' ? 'active' : ''}`}
+              onClick={() => setShowCursorMenu((prev) => !prev)}
               title="Cursor Style Options"
             >
               <Pointer size={16} />
             </button>
 
             {showCursorMenu && (
-              <div 
+              <div
                 className="grid-popover-menu glass"
                 style={{
                   position: 'absolute',
@@ -495,9 +518,194 @@ function Toolbar({
             )}
           </div>
 
+          {/* Connection Style Selector Popover */}
+          <div ref={connectorMenuRef} style={{ position: 'relative' }}>
+            <button
+              className={`toolbar-btn ${showConnectorMenu || connectorStyle !== 'default' || connectorColor !== 'auto' || connectorAnimation !== 'none' || connectorThickness !== 2.5 ? 'active' : ''}`}
+              onClick={() => setShowConnectorMenu((prev) => !prev)}
+              title="Connection Style Settings"
+              style={{
+                color: showConnectorMenu ? 'var(--accent-indigo)' : 'inherit'
+              }}
+            >
+              <Link size={16} />
+            </button>
+
+            {showConnectorMenu && (
+              <div
+                className="grid-popover-menu glass"
+                style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 10px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(20, 20, 30, 0.95)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                  zIndex: 999,
+                  minWidth: '220px',
+                  maxHeight: '400px',
+                  overflowY: 'auto'
+                }}
+              >
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Connector Styling
+                </span>
+
+                {/* STYLE TYPE */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Path Type</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
+                    {[
+                      { id: 'default', label: 'Curve' },
+                      { id: 'dotted', label: 'Dotted' },
+                      { id: 'arrow', label: 'Arrow' },
+                      { id: 'smooth-90', label: 'Smooth 90°' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onChangeConnectorStyle(opt.id)}
+                        style={{
+                          background: connectorStyle === opt.id ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                          border: connectorStyle === opt.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.05)',
+                          color: connectorStyle === opt.id ? '#a5b4fc' : 'var(--color-text-main)',
+                          borderRadius: '6px',
+                          padding: '4px 6px',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          fontWeight: connectorStyle === opt.id ? 600 : 400,
+                          transition: 'all 0.1s'
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* THICKNESS */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Thickness</span>
+                  <div style={{ display: 'flex', gap: '3px' }}>
+                    {[
+                      { id: 1.5, label: 'Thin' },
+                      { id: 2.5, label: 'Medium' },
+                      { id: 4.5, label: 'Thick' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onChangeConnectorThickness(opt.id)}
+                        style={{
+                          flex: 1,
+                          background: connectorThickness === opt.id ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                          border: connectorThickness === opt.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.05)',
+                          color: connectorThickness === opt.id ? '#a5b4fc' : 'var(--color-text-main)',
+                          borderRadius: '6px',
+                          padding: '4px',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          fontWeight: connectorThickness === opt.id ? 600 : 400,
+                          transition: 'all 0.1s'
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ANIMATION EFFECT */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Flow Effects</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {[
+                      { id: 'none', label: '🚫 Static (None)' },
+                      { id: 'flow-forward', label: '➔ Flow (Forward)' },
+                      { id: 'flow-backward', label: '← Flow (Reverse)' },
+                      { id: 'pulse', label: '⚡ Neon Pulse Glow' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onChangeConnectorAnimation(opt.id)}
+                        style={{
+                          background: connectorAnimation === opt.id ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                          border: connectorAnimation === opt.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid transparent',
+                          color: connectorAnimation === opt.id ? '#a5b4fc' : 'var(--color-text-main)',
+                          borderRadius: '6px',
+                          padding: '4px 6px',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          fontWeight: connectorAnimation === opt.id ? 600 : 400,
+                          transition: 'all 0.1s'
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* COLOR PALETTE */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Color</span>
+                  
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => onChangeConnectorColor('auto')}
+                      style={{
+                        flex: 1,
+                        background: connectorColor === 'auto' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                        border: connectorColor === 'auto' ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.05)',
+                        color: connectorColor === 'auto' ? '#a5b4fc' : 'var(--color-text-main)',
+                        borderRadius: '6px',
+                        padding: '4px 6px',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        fontWeight: connectorColor === 'auto' ? 600 : 400,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      🌈 Based on Card
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChangeConnectorColor('#ffffff')}
+                      style={{
+                        flex: 1,
+                        background: connectorColor === '#ffffff' ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                        border: connectorColor === '#ffffff' ? '1px solid rgba(255, 255, 255, 0.5)' : '1px solid rgba(255,255,255,0.05)',
+                        color: connectorColor === '#ffffff' ? '#ffffff' : 'var(--color-text-main)',
+                        borderRadius: '6px',
+                        padding: '4px 6px',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        fontWeight: connectorColor === '#ffffff' ? 600 : 400,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      ⚪ White
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+
           {/* Text Formatting Toolbar Toggle */}
-          <button 
-            className={`toolbar-btn ${showTextFormatBar ? 'active' : ''}`} 
+          <button
+            className={`toolbar-btn ${showTextFormatBar ? 'active' : ''}`}
             onClick={onToggleTextFormatBar}
             title={showTextFormatBar ? "Hide Text Formatting Menu" : "Show Text Formatting Menu"}
             style={{
@@ -515,16 +723,16 @@ function Toolbar({
 
         {/* Actions Group */}
         <div className="toolbar-group">
-          <button 
-            className="toolbar-btn" 
-            onClick={onExportPNG} 
+          <button
+            className="toolbar-btn"
+            onClick={onExportPNG}
             title="Export Board to PNG Image"
           >
             <Download size={17} color="var(--accent-amber)" />
           </button>
-          <button 
-            className="toolbar-btn" 
-            onClick={onClearBoard} 
+          <button
+            className="toolbar-btn"
+            onClick={onClearBoard}
             title="Clear Board Canvas"
           >
             <Trash2 size={16} style={{ color: 'var(--accent-rose)' }} />
