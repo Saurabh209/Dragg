@@ -204,6 +204,8 @@ const pointsToSvgPath = (points, r) => {
 function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToast, forceViewOnly = false }) {
   const [boardName, setBoardName] = useState('');
   const [cards, setCards] = useState([]);
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
   const [connections, setConnections] = useState([]);
   const [drawings, setDrawings] = useState([]); // Array of strokes: { tool, color, thickness, points }
   const [pan, setPan] = useState({ x: 100, y: 100 });
@@ -1693,6 +1695,96 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   // Update card values (supports group movement delta when multiple cards selected)
   const handleUpdateCard = (cardId, updatedFields) => {
     if (isViewOnly) return;
+
+    // Check if card is being resized or layout toggled
+    const cardToUpdate = cardsRef.current.find((c) => c.id === cardId);
+    if (cardToUpdate) {
+      if ('width' in updatedFields || 'height' in updatedFields) {
+        const oldWidth = cardToUpdate.width || 250;
+        const oldHeight = cardToUpdate.height || 200;
+        const newWidth = updatedFields.width !== undefined ? updatedFields.width : oldWidth;
+        const newHeight = updatedFields.height !== undefined ? updatedFields.height : oldHeight;
+
+        if (oldWidth !== newWidth || oldHeight !== newHeight) {
+          setConnections((prevConns) =>
+            prevConns.map((conn) => {
+              let updated = false;
+              const newConn = { ...conn };
+
+              if (conn.fromCardId === cardId) {
+                if (conn.fromOffsetX !== undefined) {
+                  newConn.fromOffsetX = oldWidth > 0 ? (conn.fromOffsetX / oldWidth) * newWidth : conn.fromOffsetX;
+                  updated = true;
+                }
+                if (conn.fromOffsetY !== undefined) {
+                  newConn.fromOffsetY = oldHeight > 0 ? (conn.fromOffsetY / oldHeight) * newHeight : conn.fromOffsetY;
+                  updated = true;
+                }
+              }
+
+              if (conn.toCardId === cardId) {
+                if (conn.toOffsetX !== undefined) {
+                  newConn.toOffsetX = oldWidth > 0 ? (conn.toOffsetX / oldWidth) * newWidth : conn.toOffsetX;
+                  updated = true;
+                }
+                if (conn.toOffsetY !== undefined) {
+                  newConn.toOffsetY = oldHeight > 0 ? (conn.toOffsetY / oldHeight) * newHeight : conn.toOffsetY;
+                  updated = true;
+                }
+              }
+
+              return updated ? newConn : conn;
+            })
+          );
+        }
+      }
+
+      if ('nodeLayout' in updatedFields) {
+        const newLayout = updatedFields.nodeLayout;
+        setConnections((prevConns) =>
+          prevConns.map((conn) => {
+            let updated = false;
+            const newConn = { ...conn };
+
+            if (conn.fromCardId === cardId) {
+              if (newLayout === 'four-node' && conn.fromSide === 'freestyle') {
+                const x = cardToUpdate.x + (conn.fromOffsetX || 0);
+                const y = cardToUpdate.y + (conn.fromOffsetY || 0);
+                newConn.fromSide = getLogicalSide(cardToUpdate, { x, y });
+                newConn.fromOffsetX = undefined;
+                newConn.fromOffsetY = undefined;
+                updated = true;
+              } else if (newLayout === 'freestyle' && conn.fromSide !== 'freestyle') {
+                const coords = getPortCoords(cardToUpdate, conn.fromSide);
+                newConn.fromSide = 'freestyle';
+                newConn.fromOffsetX = coords.x - cardToUpdate.x;
+                newConn.fromOffsetY = coords.y - cardToUpdate.y;
+                updated = true;
+              }
+            }
+
+            if (conn.toCardId === cardId) {
+              if (newLayout === 'four-node' && conn.toSide === 'freestyle') {
+                const x = cardToUpdate.x + (conn.toOffsetX || 0);
+                const y = cardToUpdate.y + (conn.toOffsetY || 0);
+                newConn.toSide = getLogicalSide(cardToUpdate, { x, y });
+                newConn.toOffsetX = undefined;
+                newConn.toOffsetY = undefined;
+                updated = true;
+              } else if (newLayout === 'freestyle' && conn.toSide !== 'freestyle') {
+                const coords = getPortCoords(cardToUpdate, conn.toSide);
+                newConn.toSide = 'freestyle';
+                newConn.toOffsetX = coords.x - cardToUpdate.x;
+                newConn.toOffsetY = coords.y - cardToUpdate.y;
+                updated = true;
+              }
+            }
+
+            return updated ? newConn : conn;
+          })
+        );
+      }
+    }
 
     setCards((prev) => {
       const cardToUpdate = prev.find((c) => c.id === cardId);
