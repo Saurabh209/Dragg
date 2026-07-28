@@ -90,7 +90,7 @@ function App() {
   return (
     <>
       {/* Universal Fullscreen Logo Button */}
-      <button
+      {/* <button
         onClick={handleToggleFullscreen}
         style={{
           position: 'fixed',
@@ -115,7 +115,7 @@ function App() {
         title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
       >
         {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-      </button>
+      </button> */}
 
       {currentBoardId === null ? (
         <Dashboard 

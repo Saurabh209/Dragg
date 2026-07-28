@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import LeftVerticalToolbar from './LeftVerticalToolbar';
 import LiveCanvasBackground from './LiveCanvasBackground';
-import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import GroupContainer from './GroupContainer';
 
@@ -30,7 +30,7 @@ const intersectsRect = (p1, p2, rect) => {
   if (Math.abs(p1.y - p2.y) < 0.1) {
     return p1.y >= top && p1.y <= bottom && minX <= right && maxX >= left;
   }
-  
+
   return false;
 };
 
@@ -38,21 +38,21 @@ const getClosestPointOnRectBorder = (point, rect) => {
   if (!rect) return point;
   const x = point.x;
   const y = point.y;
-  
+
   const clampedX = Math.max(rect.left, Math.min(rect.right, x));
   const clampedY = Math.max(rect.top, Math.min(rect.bottom, y));
-  
+
   if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
     return { x: clampedX, y: clampedY };
   }
-  
+
   const distL = x - rect.left;
   const distR = rect.right - x;
   const distT = y - rect.top;
   const distB = rect.bottom - y;
-  
+
   const minDist = Math.min(distL, distR, distT, distB);
-  
+
   if (minDist === distL) return { x: rect.left, y };
   if (minDist === distR) return { x: rect.right, y };
   if (minDist === distT) return { x, y: rect.top };
@@ -63,7 +63,7 @@ const isPathSafe = (points, rectA, rectB) => {
   for (let i = 0; i < points.length - 1; i++) {
     const p1 = points[i];
     const p2 = points[i + 1];
-    
+
     if (i === 0) {
       // First segment: exits rectA. Only check intersection with rectB.
       if (intersectsRect(p1, p2, rectB)) return false;
@@ -110,7 +110,7 @@ const optimizePoints = (pts) => {
 const getPathLength = (pts) => {
   let len = 0;
   for (let i = 0; i < pts.length - 1; i++) {
-    len += Math.abs(pts[i+1].x - pts[i].x) + Math.abs(pts[i+1].y - pts[i].y);
+    len += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
   }
   return len;
 };
@@ -118,14 +118,14 @@ const getPathLength = (pts) => {
 const getPathMidpoint = (pts) => {
   if (pts.length === 0) return { x: 0, y: 0 };
   if (pts.length === 1) return { x: pts[0].x, y: pts[0].y };
-  
+
   const totalLen = getPathLength(pts);
   const targetLen = totalLen / 2;
-  
+
   let currentLen = 0;
   for (let i = 0; i < pts.length - 1; i++) {
     const p1 = pts[i];
-    const p2 = pts[i+1];
+    const p2 = pts[i + 1];
     const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
     if (currentLen + segLen >= targetLen) {
       const ratio = segLen === 0 ? 0 : (targetLen - currentLen) / segLen;
@@ -148,7 +148,7 @@ const pointsToSvgPath = (points, r) => {
   let pathStr = `M ${points[0].x} ${points[0].y}`;
   let penX = points[0].x;
   let penY = points[0].y;
-  
+
   for (let i = 1; i < points.length - 1; i++) {
     const pPrev = points[i - 1];
     const pCurr = points[i];
@@ -184,7 +184,7 @@ const pointsToSvgPath = (points, r) => {
         x: pCurr.x + dir2.x * actualR,
         y: pCurr.y + dir2.y * actualR
       };
-      
+
       if (Math.hypot(pStart.x - penX, pStart.y - penY) > 0.1) {
         pathStr += ` L ${pStart.x} ${pStart.y}`;
       }
@@ -314,6 +314,33 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   // Custom Right Click Context Menu state
   const [contextMenu, setContextMenu] = useState(null);
+  const [activeBadgePickerCardId, setActiveBadgePickerCardId] = useState(null);
+  const contextMenuRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+
+    const menuRect = contextMenuRef.current.getBoundingClientRect();
+    const { x, y } = contextMenu;
+
+    let adjustedX = x;
+    let adjustedY = y;
+
+    if (x + menuRect.width > window.innerWidth - 12) {
+      adjustedX = window.innerWidth - menuRect.width - 12;
+    }
+    if (adjustedX < 12) adjustedX = 12;
+
+    if (y + menuRect.height > window.innerHeight - 12) {
+      adjustedY = Math.max(12, window.innerHeight - menuRect.height - 12);
+    }
+    if (adjustedY < 12) adjustedY = 12;
+
+    if (adjustedX !== x || adjustedY !== y) {
+      contextMenuRef.current.style.left = `${adjustedX}px`;
+      contextMenuRef.current.style.top = `${adjustedY}px`;
+    }
+  }, [contextMenu]);
 
   // Close context menu on global click or Escape key
   useEffect(() => {
@@ -929,7 +956,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         const matchedPreset = stylePresets.find(p => p.key.toLowerCase() === pressedKey);
         if (matchedPreset) {
           // Check if preset is already active
-          const isCurrentlyActive = 
+          const isCurrentlyActive =
             (!matchedPreset.toolMode || toolMode === matchedPreset.toolMode) &&
             (!matchedPreset.connectorStyle || activeConnectorStyle === matchedPreset.connectorStyle) &&
             (!matchedPreset.connectorAnimation || activeConnectorAnimation === matchedPreset.connectorAnimation) &&
@@ -978,18 +1005,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    keybindings, 
-    stylePresets, 
-    toolMode, 
-    activeConnectorStyle, 
-    activeConnectorAnimation, 
-    activeConnectorColor, 
-    activeConnectorThickness, 
-    penColor, 
-    penThickness, 
-    gridType, 
-    boardBgColor, 
-    liveBgStyle, 
+    keybindings,
+    stylePresets,
+    toolMode,
+    activeConnectorStyle,
+    activeConnectorAnimation,
+    activeConnectorColor,
+    activeConnectorThickness,
+    penColor,
+    penThickness,
+    gridType,
+    boardBgColor,
+    liveBgStyle,
     cursorStyle
   ]);
 
@@ -2160,7 +2187,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
     const initialCanvasCoords = screenToCanvas(e.clientX, e.clientY);
     const fromSide = fromSideInput === 'connector' ? getClosestSide(card, initialCanvasCoords) : fromSideInput;
-    
+
     const rectA = {
       left: card.x,
       top: card.y,
@@ -2201,7 +2228,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       if (targetCard) {
         const isTargetFreestyle = targetCard.nodeLayout === 'freestyle';
         const targetSide = isTargetFreestyle ? 'freestyle' : getClosestSide(targetCard, canvasCoords);
-        
+
         let toOffsetX = undefined;
         let toOffsetY = undefined;
         if (isTargetFreestyle) {
@@ -2421,7 +2448,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         // C-shape bypass via Right
         [from, pA, { x: rightX, y: pA.y }, { x: rightX, y: pB.y }, pB, to]
       ];
-      
+
       // Evaluate candidates with length and turn penalties
       const safeCandidates = [];
       const allCandidates = [];
@@ -2430,10 +2457,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         const optimized = optimizePoints(rawPath);
         const isSafe = isPathSafe(rawPath, rectA, rectB);
         const actualLength = getPathLength(optimized);
-        
+
         // Calculate number of turns in the optimized path
         const turns = Math.max(0, optimized.length - 2);
-        
+
         // 60px penalty per turn to strongly favor simpler layouts and prevent flicker
         const turnPenalty = turns * 60;
         const sortScore = actualLength + turnPenalty;
@@ -2539,6 +2566,26 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       showToast('Export failed. Check console.', 'error');
     } finally {
       setSaveStatus('saved');
+    }
+  };
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
     }
   };
 
@@ -3455,7 +3502,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                       <stop offset="0%" stopColor={colorA} stopOpacity="0.9" />
                       <stop offset="100%" stopColor={colorB} stopOpacity="0.9" />
                     </linearGradient>
-                    
+
                     <marker
                       id={`arrow-${conn.id}`}
                       viewBox="0 0 10 10"
@@ -3708,6 +3755,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                   highlightDelay={cardDelay}
                   isParentGroupLocked={isParentGroupLocked}
                   showTextFormatBar={showTextFormatBar}
+                  showBadgePicker={activeBadgePickerCardId === card.id}
+                  onCloseBadgePicker={() => setActiveBadgePickerCardId(null)}
                 />
               );
             })}
@@ -3825,15 +3874,9 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
         {/* Floating Zoom Widget */}
         <div className="zoom-floating-widget">
-          <button
-            className="zoom-widget-btn"
-            onClick={handleZoomOut}
-            title="Zoom Out"
-          >
-            <ZoomOut size={13} />
-          </button>
-          <span 
-            className="zoom-widget-indicator" 
+
+          <span
+            className="zoom-widget-indicator"
             onClick={handleResetZoom}
             title="Recenter/Reset Zoom"
           >
@@ -3853,6 +3896,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             style={{ marginLeft: '2px', borderLeft: '1px solid rgba(255, 255, 255, 0.08)', paddingLeft: '6px' }}
           >
             <Maximize size={12} />
+          </button>
+          <button
+            className="zoom-widget-btn"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            style={{ marginLeft: '2px', borderLeft: '1px solid rgba(255, 255, 255, 0.08)', paddingLeft: '6px' }}
+          >
+            {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
         </div>
 
@@ -3983,7 +4034,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                   />
                   <span>🏷️ Tags Section</span>
                 </label>
-                
+
                 <div style={{ marginTop: '0.8rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.8rem' }}>
                   <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Node Connection Layout
@@ -4329,6 +4380,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       {/* Custom Right-Click Context Menu Bar */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="context-menu-popover glass"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
@@ -4530,6 +4582,18 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                       <button
                         className="context-menu-item"
                         onClick={() => {
+                          setActiveBadgePickerCardId(card.id);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Tag size={13} color="var(--accent-cyan)" />
+                        <span>Edit Badge & Tag</span>
+                      </button>
+                    )}
+                    {!isViewOnly && (
+                      <button
+                        className="context-menu-item"
+                        onClick={() => {
                           handleUpdateCard(card.id, { isLocked: !card.isLocked });
                           setContextMenu(null);
                         }}
@@ -4708,38 +4772,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             </button>
           )}
 
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              setIsCodePanelOpen(!isCodePanelOpen);
-              setContextMenu(null);
-            }}
-          >
-            <Code2 size={13} color="var(--accent-amber)" />
-            <span>{isCodePanelOpen ? 'Close Code Sandbox' : 'Open Code Sandbox'}</span>
-          </button>
 
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              setIsOutlineOpen(!isOutlineOpen);
-              setContextMenu(null);
-            }}
-          >
-            <List size={13} color="var(--accent-cyan)" />
-            <span>{isOutlineOpen ? 'Close Outline' : 'Open Outline'}</span>
-          </button>
-
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              handleResetZoom();
-              setContextMenu(null);
-            }}
-          >
-            <Maximize2 size={13} />
-            <span>Recenter Viewport</span>
-          </button>
 
           {!isViewOnly && (
             <>

@@ -94,7 +94,9 @@ function Card({
   isDimmed = false,
   highlightDelay = 0,
   isParentGroupLocked = false,
-  showTextFormatBar = false
+  showTextFormatBar = false,
+  showBadgePicker = false,
+  onCloseBadgePicker
 }) {
   const isViewOnly = isViewOnlyGlobal || card.isLocked || isParentGroupLocked || isDimmed;
   const features = card.features || {
@@ -118,7 +120,6 @@ function Card({
     transitionDelay: highlightDelay ? `${highlightDelay}ms` : '0ms'
   };
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showBadgePicker, setShowBadgePicker] = useState(false);
   const [isEditingTag, setIsEditingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
 
@@ -147,7 +148,7 @@ function Card({
         setShowColorPicker(false);
       }
       if (showBadgePicker && badgePickerRef.current && !badgePickerRef.current.contains(e.target)) {
-        setShowBadgePicker(false);
+        onCloseBadgePicker && onCloseBadgePicker();
       }
     };
 
@@ -157,7 +158,7 @@ function Card({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColorPicker, showBadgePicker]);
+  }, [showColorPicker, showBadgePicker, onCloseBadgePicker]);
 
   const [localCardMode, setLocalCardMode] = useState(null);
 
@@ -945,6 +946,24 @@ function Card({
         if (onDoubleClickFocus) onDoubleClickFocus(card);
       }}
     >
+      {/* Floating Lock Indicator just outside top-right corner */}
+      {(card.isLocked || isParentGroupLocked) && (
+        <button
+          type="button"
+          className="card-lock-indicator"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isParentGroupLocked) return;
+            onUpdate(card.id, { isLocked: false });
+          }}
+          title={isParentGroupLocked ? "Locked by parent group" : "Card is locked. Click to unlock."}
+          style={{
+            cursor: isParentGroupLocked ? 'not-allowed' : 'pointer'
+          }}
+        >
+          <Lock size={12} />
+        </button>
+      )}
       {/* Floating Color Picker Overlay (OUTSIDE .card-content-container) */}
       {showColorPicker && (
         <div
@@ -1033,7 +1052,7 @@ function Card({
               Badge & Status Tag
             </span>
             <button
-              onClick={() => setShowBadgePicker(false)}
+              onClick={() => onCloseBadgePicker && onCloseBadgePicker()}
               style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
             >
               <X size={12} />
@@ -1051,7 +1070,7 @@ function Card({
                     badge: { text: preset.text, color: preset.color },
                     isStartNode: preset.isStartNode
                   });
-                  setShowBadgePicker(false);
+                  onCloseBadgePicker && onCloseBadgePicker();
                 }}
                 style={{
                   background: preset.color,
@@ -1164,7 +1183,7 @@ function Card({
             <button
               onClick={() => {
                 onUpdate(card.id, { badge: null, isStartNode: false });
-                setShowBadgePicker(false);
+                onCloseBadgePicker && onCloseBadgePicker();
               }}
               style={{
                 background: 'rgba(244, 63, 94, 0.15)',
@@ -1250,79 +1269,6 @@ function Card({
                 readOnly={isViewOnly}
               />
             </>
-          )}
-          {(() => {
-            if (!currentBadge || !currentBadge.text) return null;
-            return (
-              <span
-                className="custom-card-badge"
-                onClick={(e) => {
-                  if (!isViewOnly) {
-                    e.stopPropagation();
-                    setShowBadgePicker(!showBadgePicker);
-                  }
-                }}
-                style={{
-                  background: currentBadge.color || '#881337',
-                  color: '#ffffff',
-                  fontWeight: 750,
-                  fontSize: '0.65rem',
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '4px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  marginRight: '0.4rem',
-                  flexShrink: 0,
-                  boxShadow: `0 0 10px ${hexToRgba(currentBadge.color || '#881337', 0.7)}`,
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  cursor: isViewOnly ? 'default' : 'pointer',
-                  userSelect: 'none'
-                }}
-                title={isViewOnly ? `Badge: ${currentBadge.text}` : `Click to customize badge (${currentBadge.text})`}
-              >
-                {currentBadge.text}
-              </span>
-            );
-          })()}
-          {!isHeadingCard && (
-            <div className="card-actions-wrapper">
-              {!isViewOnly && (
-                <button
-                  className={`card-action-btn start-node-btn ${(card.badge || card.isStartNode) ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowBadgePicker(!showBadgePicker);
-                  }}
-                  title={(card.badge?.text || card.isStartNode) ? `Badge: ${card.badge?.text || 'Entry Point'}` : "Badge & Card Color"}
-                >
-                  <Tag
-                    size={13}
-                    color={(card.badge?.color || (card.isStartNode ? '#881337' : (card.color?.startsWith('#') ? card.color : null))) || "var(--color-text-muted)"}
-                  />
-                </button>
-              )}
-              {!isViewOnlyGlobal && (
-                <button
-                  className={`card-action-btn lock-btn ${(card.isLocked || isParentGroupLocked) ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isParentGroupLocked) return;
-                    onUpdate(card.id, { isLocked: !card.isLocked });
-                  }}
-                  title={isParentGroupLocked ? "Locked by parent group" : (card.isLocked ? "Unlock Card" : "Lock Card")}
-                  style={{
-                    opacity: (card.isLocked || isParentGroupLocked) ? 1 : 0.6,
-                    cursor: isParentGroupLocked ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {(card.isLocked || isParentGroupLocked) ? (
-                    <Lock size={13} color="var(--accent-rose)" />
-                  ) : (
-                    <Unlock size={13} color="var(--color-text-muted)" />
-                  )}
-                </button>
-              )}
-            </div>
           )}
         </div>
 

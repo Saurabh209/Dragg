@@ -10,6 +10,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   const [newBoardName, setNewBoardName] = useState('');
   const [newBoardPassword, setNewBoardPassword] = useState('');
   const [newBoardProtectionMode, setNewBoardProtectionMode] = useState('none');
+  const [newBoardPreset, setNewBoardPreset] = useState('freestyle');
   
   // Board unlock modal states (when clicking fully protected board)
   const [boardToUnlock, setBoardToUnlock] = useState(null);
@@ -101,7 +102,8 @@ function Dashboard({ onSelectBoard, showToast }) {
         body: JSON.stringify({ 
           name: newBoardName.trim(),
           password: newBoardPassword,
-          protectionMode: newBoardProtectionMode
+          protectionMode: newBoardProtectionMode,
+          preset: newBoardPreset
         }),
       });
       if (!res.ok) throw new Error('Failed to create board');
@@ -116,6 +118,7 @@ function Dashboard({ onSelectBoard, showToast }) {
       setNewBoardName('');
       setNewBoardPassword('');
       setNewBoardProtectionMode('none');
+      setNewBoardPreset('freestyle');
       setIsModalOpen(false);
       
       onSelectBoard(data._id, p || '', false);
@@ -474,7 +477,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   return (
     <div className="dashboard-container">
       {/* Header Action Buttons in top-right corner */}
-      <div style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', gap: '0.6rem', zIndex: 10 }}>
+      <div className="dashboard-header-actions" style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', gap: '0.6rem', zIndex: 10 }}>
         <button 
           className="whats-new-btn glass"
           onClick={() => setShowWhatsNewModal(true)}
@@ -493,8 +496,8 @@ function Dashboard({ onSelectBoard, showToast }) {
             transition: 'all 0.2s ease'
           }}
         >
-          <span style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.3px' }}>What's New</span>
-          <span style={{ fontSize: '0.65rem', fontWeight: 800, background: '#a855f7', color: '#ffffff', padding: '1px 6px', borderRadius: '10px', marginLeft: '2px' }}>NEW</span>
+          <span className="whats-new-text" style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.3px' }}>What's New</span>
+          <span className="whats-new-badge" style={{ fontSize: '0.65rem', fontWeight: 800, background: '#a855f7', color: '#ffffff', padding: '1px 6px', borderRadius: '10px', marginLeft: '2px' }}>NEW</span>
         </button>
 
         <button 
@@ -514,7 +517,7 @@ function Dashboard({ onSelectBoard, showToast }) {
           }}
         >
           <Settings size={15} />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Controls</span>
+          <span className="dashboard-settings-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Controls</span>
         </button>
       </div>
 
@@ -767,14 +770,46 @@ function Dashboard({ onSelectBoard, showToast }) {
           setIsModalOpen(false);
           setNewBoardPassword('');
           setNewBoardProtectionMode('none');
+          setNewBoardPreset('freestyle');
         }}>
           <form 
             className="modal-content glass"
             onClick={(e) => e.stopPropagation()}
             onSubmit={handleCreateBoard}
-            style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxWidth: '500px', width: '92%' }}
           >
             <h2 className="modal-title">Create New Board</h2>
+            
+            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              Select Preset
+              <div className="preset-selection-container">
+                <div 
+                  type="button"
+                  className={`preset-card ${newBoardPreset === 'freestyle' ? 'selected' : ''}`}
+                  onClick={() => setNewBoardPreset('freestyle')}
+                >
+                  <div className="preset-card-icon-container">
+                    <Sparkles size={18} />
+                  </div>
+                  <span className="preset-card-name">Freestyle</span>
+                  <span className="preset-card-desc">Open canvas with notes, code sandboxes, sketches, and uploads.</span>
+                </div>
+                <div 
+                  type="button"
+                  className="preset-card coming-soon"
+                  title="Coming Soon!"
+                  onClick={() => showToast('System Design preset is coming soon!', 'info')}
+                >
+                  <span className="preset-card-badge">Coming Soon</span>
+                  <div className="preset-card-icon-container">
+                    <Layers size={18} />
+                  </div>
+                  <span className="preset-card-name">System Design</span>
+                  <span className="preset-card-desc">Developer canvas with databases, queues, caches, and flow paths.</span>
+                </div>
+              </div>
+            </div>
+
             <input 
               type="text" 
               className="modal-input" 
@@ -785,33 +820,61 @@ function Dashboard({ onSelectBoard, showToast }) {
               required
             />
             
-            <label style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.2rem' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.2rem' }}>
               Protection Mode
-              <select
-                className="modal-select"
-                value={newBoardProtectionMode}
-                onChange={(e) => {
-                  setNewBoardProtectionMode(e.target.value);
-                  if (e.target.value === 'none') setNewBoardPassword('');
-                }}
-              >
-                <option value="none">Public (Unprotected)</option>
-                <option value="partial">Partial Lock (View Only, edits need password)</option>
-                <option value="full">Full Lock (Password needed to enter board)</option>
-              </select>
-            </label>
+              <div className="protection-btn-group">
+                <button
+                  type="button"
+                  className={`protection-btn ${newBoardProtectionMode === 'none' ? 'selected' : ''}`}
+                  onClick={() => {
+                    setNewBoardProtectionMode('none');
+                    setNewBoardPassword('');
+                  }}
+                  title="Public: Open board, anyone can view and edit."
+                >
+                  Public
+                </button>
+                <button
+                  type="button"
+                  className={`protection-btn ${newBoardProtectionMode === 'partial' ? 'selected' : ''}`}
+                  onClick={() => setNewBoardProtectionMode('partial')}
+                  title="Partial Lock: Anyone can view, but edits/deletions require the password."
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                >
+                  Partial Lock
+                  <Info size={11} style={{ opacity: 0.6 }} />
+                </button>
+                <button
+                  type="button"
+                  className={`protection-btn ${newBoardProtectionMode === 'full' ? 'selected' : ''}`}
+                  onClick={() => setNewBoardProtectionMode('full')}
+                  title="Full Lock: Password required to enter or view the board."
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                >
+                  Full Lock
+                  <Info size={11} style={{ opacity: 0.6 }} />
+                </button>
+              </div>
+            </div>
 
-            {newBoardProtectionMode !== 'none' && (
+            <div style={{
+              maxHeight: newBoardProtectionMode !== 'none' ? '60px' : '0px',
+              opacity: newBoardProtectionMode !== 'none' ? 1 : 0,
+              overflow: 'hidden',
+              transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              marginTop: newBoardProtectionMode !== 'none' ? '0.2rem' : '0px',
+              marginBottom: newBoardProtectionMode !== 'none' ? '0.2rem' : '0px'
+            }}>
               <input
                 type="password"
                 className="modal-input"
                 placeholder="Set Board Password..."
                 value={newBoardPassword}
                 onChange={(e) => setNewBoardPassword(e.target.value)}
-                required
-                style={{ marginTop: '0.2rem' }}
+                required={newBoardProtectionMode !== 'none'}
+                style={{ width: '100%', boxSizing: 'border-box' }}
               />
-            )}
+            </div>
 
             <div className="modal-actions" style={{ marginTop: '0.6rem' }}>
               <button 
@@ -821,6 +884,7 @@ function Dashboard({ onSelectBoard, showToast }) {
                   setIsModalOpen(false);
                   setNewBoardPassword('');
                   setNewBoardProtectionMode('none');
+                  setNewBoardPreset('freestyle');
                 }}
               >
                 Cancel
