@@ -1248,17 +1248,7 @@ function Card({
               <div className="card-drag-handle" title={isViewOnly ? "Locked (View Only)" : "Drag header to move card"}>
                 <GripHorizontal size={14} />
               </div>
-              {!isHeadingCard && (
-                <input
-                  type="checkbox"
-                  className="card-header-checkbox"
-                  checked={!!card.showInSearch}
-                  onChange={(e) => onUpdate(card.id, { showInSearch: e.target.checked })}
-                  onClick={(e) => e.stopPropagation()}
-                  disabled={isViewOnly}
-                  title={card.showInSearch ? "Included in Outline (Click to exclude)" : "Excluded from Outline (Click to include)"}
-                />
-              )}
+
               <input
                 type="text"
                 className="card-title-input"

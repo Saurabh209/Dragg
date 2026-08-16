@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import CanvasBoard from './components/CanvasBoard';
+import DevTool from './components/DevTool';
 import { Maximize2, Minimize2 } from 'lucide-react';
 
 function App() {
@@ -147,6 +148,9 @@ function App() {
           </div>
         ))}
       </div>
+
+      {/* Embedded DevTool */}
+      <DevTool />
     </>
   );
 }
