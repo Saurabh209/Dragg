@@ -149,8 +149,8 @@ function App() {
         ))}
       </div>
 
-      {/* Embedded DevTool */}
-      <DevTool />
+      {/* Embedded DevTool (Dev Mode Only) */}
+      {import.meta.env.DEV && <DevTool />}
     </>
   );
 }

@@ -437,7 +437,6 @@ h6 {
 
 .connection-line {
   fill: none;
-  stroke-width: 2.5px;
   transition: stroke 0.2s, stroke-width 0.2s, stroke-dashoffset 0.1s;
   pointer-events: stroke;
   cursor: pointer;
@@ -693,6 +692,67 @@ h6 {
 
 .card-drag-handle:hover {
   color: var(--accent-indigo);
+}
+
+/* Card Header Badge & Hover Logo Button Styling */
+.card-header-badge-slot {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.card-badge-pill {
+  border: none;
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease, filter 0.15s ease;
+  user-select: none;
+}
+
+.card-badge-pill:hover {
+  transform: scale(1.04);
+  filter: brightness(1.15);
+}
+
+.add-badge-hover-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 0.2rem 0.38rem;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.62rem;
+  transition: all 0.2s ease;
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.card-wrapper:hover .add-badge-hover-btn,
+.card-wrapper.selected .add-badge-hover-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.add-badge-hover-btn:hover {
+  background: rgba(6, 182, 212, 0.2) !important;
+  border-color: var(--accent-cyan) !important;
+  color: #cffafe !important;
 }
 
 /* Custom checkbox in card header */

@@ -68,13 +68,13 @@ function Toolbar({
   const fileInputRef = useRef(null);
   const gridMenuRef = useRef(null);
   const cursorMenuRef = useRef(null);
-  const connectorMenuRef = useRef(null);
   const [showGridMenu, setShowGridMenu] = useState(false);
   const [showCursorMenu, setShowCursorMenu] = useState(false);
-  const [showConnectorMenu, setShowConnectorMenu] = useState(false);
+  const [showLinkOptions, setShowLinkOptions] = useState(false);
+  const [showPenOptions, setShowPenOptions] = useState(false);
   const [bgTab, setBgTab] = useState('static'); // 'static' | 'live'
 
-  // Auto-close grid, cursor & connector selector menus on clicking outside
+  // Auto-close grid & cursor selector menus on clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showGridMenu && gridMenuRef.current && !gridMenuRef.current.contains(e.target)) {
@@ -83,18 +83,15 @@ function Toolbar({
       if (showCursorMenu && cursorMenuRef.current && !cursorMenuRef.current.contains(e.target)) {
         setShowCursorMenu(false);
       }
-      if (showConnectorMenu && connectorMenuRef.current && !connectorMenuRef.current.contains(e.target)) {
-        setShowConnectorMenu(false);
-      }
     };
 
-    if (showGridMenu || showCursorMenu || showConnectorMenu) {
+    if (showGridMenu || showCursorMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showGridMenu, showCursorMenu, showConnectorMenu]);
+  }, [showGridMenu, showCursorMenu]);
 
   const handleImageClick = () => {
     fileInputRef.current?.click();
@@ -139,14 +136,14 @@ function Toolbar({
 
         <div className="toolbar-divider" />
 
-        {/* Mode Tool Group */}
+        {/* Mode Tool Group (V & M modes + Link Options button) */}
         <div className="toolbar-group">
           <button
             className={`toolbar-btn ${toolMode === 'select' ? 'active' : ''}`}
             onClick={() => onChangeToolMode('select')}
-            title="Pan & Move Canvas (V)"
+            title="Default Pointer Tool (V)"
           >
-            <Hand size={17} />
+            <MousePointer size={17} />
           </button>
           <button
             className={`toolbar-btn ${toolMode === 'box-select' ? 'active' : ''}`}
@@ -155,14 +152,237 @@ function Toolbar({
           >
             <BoxSelect size={17} />
           </button>
+
+          {/* Link Button - Toggles Inline Connection Controls */}
           <button
-            className={`toolbar-btn ${toolMode === 'connector' ? 'active' : ''}`}
-            onClick={() => onChangeToolMode('connector')}
-            title="Card Connection Mode (C)"
-            style={{ color: toolMode === 'connector' ? 'var(--accent-indigo)' : 'inherit' }}
+            className={`toolbar-btn ${showLinkOptions ? 'active' : ''}`}
+            onClick={() => {
+              setShowLinkOptions((prev) => !prev);
+              if (showPenOptions) setShowPenOptions(false);
+            }}
+            title="Toggle Link Style Options"
+            style={{ color: showLinkOptions ? 'var(--accent-indigo)' : 'inherit' }}
           >
             <Link size={17} />
           </button>
+
+          {/* Pencil / Pen Button - Toggles Inline Pencil Controls */}
+          <button
+            className={`toolbar-btn ${toolMode === 'pen' || showPenOptions ? 'active' : ''}`}
+            onClick={() => {
+              onChangeToolMode('pen');
+              setShowPenOptions((prev) => !prev);
+              if (showLinkOptions) setShowLinkOptions(false);
+            }}
+            title="Freehand Pencil Tool (P) / Brush Options"
+            style={{ color: toolMode === 'pen' || showPenOptions ? 'var(--accent-cyan)' : 'inherit' }}
+          >
+            <Pencil size={17} />
+          </button>
+
+          {/* Inline Single-Click Connection Options */}
+          {showLinkOptions && (
+            <div 
+              className="toolbar-inline-options"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                padding: '3px 8px',
+                borderRadius: '8px',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                marginLeft: '4px'
+              }}
+            >
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Style:</span>
+
+              {/* Path Types */}
+              {[
+                { id: 'default', label: 'Curve' },
+                { id: 'waypoints', label: 'Waypoints' },
+                { id: 'dotted', label: 'Dotted' },
+                { id: 'arrow', label: 'Arrow' },
+                { id: 'smooth-90', label: '90°' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onChangeConnectorStyle(opt.id)}
+                  style={{
+                    background: connectorStyle === opt.id ? 'rgba(99, 102, 241, 0.35)' : 'transparent',
+                    color: connectorStyle === opt.id ? '#a5b4fc' : '#cbd5e1',
+                    border: connectorStyle === opt.id ? '1px solid #6366f1' : '1px solid transparent',
+                    borderRadius: '5px',
+                    padding: '2px 7px',
+                    fontSize: '0.72rem',
+                    fontWeight: connectorStyle === opt.id ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.12s ease'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+
+              <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+              {/* Flow Effects */}
+              {[
+                { id: 'none', label: 'Static' },
+                { id: 'flow-forward', label: 'Flow ➔' },
+                { id: 'pulse', label: 'Pulse ⚡' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onChangeConnectorAnimation(opt.id)}
+                  style={{
+                    background: connectorAnimation === opt.id ? 'rgba(168, 85, 247, 0.35)' : 'transparent',
+                    color: connectorAnimation === opt.id ? '#e9d5ff' : '#cbd5e1',
+                    border: connectorAnimation === opt.id ? '1px solid #a855f7' : '1px solid transparent',
+                    borderRadius: '5px',
+                    padding: '2px 7px',
+                    fontSize: '0.72rem',
+                    fontWeight: connectorAnimation === opt.id ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.12s ease'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+
+              <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+              {/* Color Swatches */}
+              {[
+                { id: 'auto', title: 'Auto (Based on Card)', color: '#38bdf8' },
+                { id: '#ffffff', title: 'White', color: '#ffffff' },
+                { id: '#6366f1', title: 'Indigo', color: '#6366f1' },
+                { id: '#10b981', title: 'Emerald', color: '#10b981' },
+                { id: '#ef4444', title: 'Rose', color: '#ef4444' },
+              ].map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => onChangeConnectorColor(c.id)}
+                  title={c.title}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    backgroundColor: c.color,
+                    border: connectorColor === c.id ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.25)',
+                    cursor: 'pointer',
+                    boxShadow: connectorColor === c.id ? '0 0 6px ' + c.color : 'none',
+                    transition: 'all 0.12s ease'
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Inline Pencil / Brush Drawing Options */}
+          {showPenOptions && (
+            <div 
+              className="toolbar-inline-options"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                padding: '3px 8px',
+                borderRadius: '8px',
+                border: '1px solid rgba(6, 182, 212, 0.35)',
+                marginLeft: '4px'
+              }}
+            >
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Size:</span>
+
+              {/* Size Buttons */}
+              {[
+                { size: 2, label: 'Thin' },
+                { size: 5, label: 'Med' },
+                { size: 10, label: 'Thick' },
+                { size: 18, label: 'Huge' }
+              ].map((opt) => (
+                <button
+                  key={opt.size}
+                  type="button"
+                  onClick={() => {
+                    onChangePenThickness(opt.size);
+                    onChangeToolMode('pen');
+                  }}
+                  style={{
+                    background: penThickness === opt.size ? 'rgba(6, 182, 212, 0.35)' : 'transparent',
+                    color: penThickness === opt.size ? '#cffafe' : '#cbd5e1',
+                    border: penThickness === opt.size ? '1px solid #06b6d4' : '1px solid transparent',
+                    borderRadius: '5px',
+                    padding: '2px 7px',
+                    fontSize: '0.72rem',
+                    fontWeight: penThickness === opt.size ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.12s ease'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+
+              <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Color:</span>
+
+              {/* Pen Colors */}
+              {[
+                { hex: '#ffffff', title: 'White' },
+                { hex: '#f87171', title: 'Red' },
+                { hex: '#4ade80', title: 'Green' },
+                { hex: '#60a5fa', title: 'Blue' },
+                { hex: '#facc15', title: 'Yellow' },
+                { hex: '#c084fc', title: 'Purple' }
+              ].map((c) => (
+                <button
+                  key={c.hex}
+                  type="button"
+                  onClick={() => {
+                    onChangePenColor(c.hex);
+                    onChangeToolMode('pen');
+                  }}
+                  title={c.title}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    backgroundColor: c.hex,
+                    border: penColor === c.hex ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.25)',
+                    cursor: 'pointer',
+                    boxShadow: penColor === c.hex ? '0 0 6px ' + c.hex : 'none',
+                    transition: 'all 0.12s ease'
+                  }}
+                />
+              ))}
+
+              <input
+                type="color"
+                value={penColor || '#ffffff'}
+                onChange={(e) => {
+                  onChangePenColor(e.target.value);
+                  onChangeToolMode('pen');
+                }}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  padding: 0,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer'
+                }}
+                title="Pick custom brush color"
+              />
+            </div>
+          )}
         </div>
 
         <div className="toolbar-divider" />
@@ -518,190 +738,7 @@ function Toolbar({
             )}
           </div>
 
-          {/* Connection Style Selector Popover */}
-          <div ref={connectorMenuRef} style={{ position: 'relative' }}>
-            <button
-              className={`toolbar-btn ${showConnectorMenu || connectorStyle !== 'default' || connectorColor !== 'auto' || connectorAnimation !== 'none' || connectorThickness !== 2.5 ? 'active' : ''}`}
-              onClick={() => setShowConnectorMenu((prev) => !prev)}
-              title="Connection Style Settings"
-              style={{
-                color: showConnectorMenu ? 'var(--accent-indigo)' : 'inherit'
-              }}
-            >
-              <Link size={16} />
-            </button>
 
-            {showConnectorMenu && (
-              <div
-                className="grid-popover-menu glass"
-                style={{
-                  position: 'absolute',
-                  bottom: 'calc(100% + 10px)',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  background: 'rgba(20, 20, 30, 0.95)',
-                  backdropFilter: 'blur(16px)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '10px',
-                  padding: '10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
-                  zIndex: 999,
-                  minWidth: '220px',
-                  maxHeight: '400px',
-                  overflowY: 'auto'
-                }}
-              >
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Connector Styling
-                </span>
-
-                {/* STYLE TYPE */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Path Type</span>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
-                    {[
-                      { id: 'default', label: 'Curve' },
-                      { id: 'dotted', label: 'Dotted' },
-                      { id: 'arrow', label: 'Arrow' },
-                      { id: 'smooth-90', label: 'Smooth 90°' }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => onChangeConnectorStyle(opt.id)}
-                        style={{
-                          background: connectorStyle === opt.id ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-                          border: connectorStyle === opt.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.05)',
-                          color: connectorStyle === opt.id ? '#a5b4fc' : 'var(--color-text-main)',
-                          borderRadius: '6px',
-                          padding: '4px 6px',
-                          fontSize: '0.7rem',
-                          cursor: 'pointer',
-                          fontWeight: connectorStyle === opt.id ? 600 : 400,
-                          transition: 'all 0.1s'
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* THICKNESS */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Thickness</span>
-                  <div style={{ display: 'flex', gap: '3px' }}>
-                    {[
-                      { id: 1.5, label: 'Thin' },
-                      { id: 2.5, label: 'Medium' },
-                      { id: 4.5, label: 'Thick' }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => onChangeConnectorThickness(opt.id)}
-                        style={{
-                          flex: 1,
-                          background: connectorThickness === opt.id ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-                          border: connectorThickness === opt.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.05)',
-                          color: connectorThickness === opt.id ? '#a5b4fc' : 'var(--color-text-main)',
-                          borderRadius: '6px',
-                          padding: '4px',
-                          fontSize: '0.7rem',
-                          cursor: 'pointer',
-                          fontWeight: connectorThickness === opt.id ? 600 : 400,
-                          transition: 'all 0.1s'
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ANIMATION EFFECT */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Flow Effects</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {[
-                      { id: 'none', label: '🚫 Static (None)' },
-                      { id: 'flow-forward', label: '➔ Flow (Forward)' },
-                      { id: 'flow-backward', label: '← Flow (Reverse)' },
-                      { id: 'pulse', label: '⚡ Neon Pulse Glow' }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => onChangeConnectorAnimation(opt.id)}
-                        style={{
-                          background: connectorAnimation === opt.id ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-                          border: connectorAnimation === opt.id ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid transparent',
-                          color: connectorAnimation === opt.id ? '#a5b4fc' : 'var(--color-text-main)',
-                          borderRadius: '6px',
-                          padding: '4px 6px',
-                          fontSize: '0.7rem',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          fontWeight: connectorAnimation === opt.id ? 600 : 400,
-                          transition: 'all 0.1s'
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* COLOR PALETTE */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '6px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Color</span>
-                  
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => onChangeConnectorColor('auto')}
-                      style={{
-                        flex: 1,
-                        background: connectorColor === 'auto' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-                        border: connectorColor === 'auto' ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.05)',
-                        color: connectorColor === 'auto' ? '#a5b4fc' : 'var(--color-text-main)',
-                        borderRadius: '6px',
-                        padding: '4px 6px',
-                        fontSize: '0.7rem',
-                        cursor: 'pointer',
-                        fontWeight: connectorColor === 'auto' ? 600 : 400,
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      🌈 Based on Card
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onChangeConnectorColor('#ffffff')}
-                      style={{
-                        flex: 1,
-                        background: connectorColor === '#ffffff' ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
-                        border: connectorColor === '#ffffff' ? '1px solid rgba(255, 255, 255, 0.5)' : '1px solid rgba(255,255,255,0.05)',
-                        color: connectorColor === '#ffffff' ? '#ffffff' : 'var(--color-text-main)',
-                        borderRadius: '6px',
-                        padding: '4px 6px',
-                        fontSize: '0.7rem',
-                        cursor: 'pointer',
-                        fontWeight: connectorColor === '#ffffff' ? 600 : 400,
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      ⚪ White
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            )}
-          </div>
 
           {/* Text Formatting Toolbar Toggle */}
           <button

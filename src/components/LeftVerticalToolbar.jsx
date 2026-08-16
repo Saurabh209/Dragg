@@ -23,7 +23,14 @@ import {
   Maximize,
   GripVertical,
   GripHorizontal,
-  Zap
+  Zap,
+  Spline,
+  MoreHorizontal,
+  ArrowRight,
+  CornerDownRight,
+  ChevronsRight,
+  Minus,
+  GitCommit
 } from 'lucide-react';
 
 function LeftVerticalToolbar({
@@ -222,9 +229,9 @@ function LeftVerticalToolbar({
             onChangeToolMode('select');
             setActiveMenu(null);
           }}
-          title="Select & Pan Tool (V)"
+          title="Default Pointer Tool (V)"
         >
-          <Hand size={18} />
+          <MousePointer size={18} />
           <span className="toolbar-btn-shortcut-badge">V</span>
         </button>
       </div>
@@ -319,178 +326,184 @@ function LeftVerticalToolbar({
         )}
       </div>
 
-      {/* 4. CONNECTOR MODE ("live node path") */}
-      <div style={{ position: 'relative' }}>
+      {/* 4. LINK & CONNECTION OPTIONS (Single-Click Inline Action Buttons) */}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <button
-          className={`vertical-toolbar-btn ${toolMode === 'connector' || activeMenu === 'connector' ? 'active' : ''}`}
-          onClick={() => {
-            onChangeToolMode('connector');
-            toggleMenu('connector');
-          }}
-          title="Connection Mode (C) / Style settings"
+          className={`vertical-toolbar-btn ${activeMenu === 'connector' ? 'active' : ''}`}
+          onClick={() => toggleMenu('connector')}
+          title="Link Options (Single-Click)"
         >
           <LinkIcon size={18} style={{ color: 'var(--accent-indigo)' }} />
-          <span className="toolbar-btn-shortcut-badge">C</span>
         </button>
 
-        {activeMenu === 'connector' && (
+        {/* Smooth Transition Inline Options Container */}
+        <div 
+          className="inline-link-toolbar-wrapper"
+          style={{
+            maxWidth: activeMenu === 'connector' ? '500px' : '0px',
+            opacity: activeMenu === 'connector' ? 1 : 0,
+            marginLeft: activeMenu === 'connector' ? '6px' : '0px',
+            transform: activeMenu === 'connector' ? 'scaleX(1)' : 'scaleX(0.85)',
+            transformOrigin: 'left center',
+            overflow: 'hidden',
+            pointerEvents: activeMenu === 'connector' ? 'auto' : 'none',
+            transition: 'all 0.32s cubic-bezier(0.16, 1, 0.3, 1)',
+            display: 'flex',
+            alignItems: 'center',
+            whiteSpace: 'nowrap'
+          }}
+        >
           <div 
-            className={`toolbar-submenu connector-menu ${isHorizontal ? 'horizontal' : ''} ${isMenuLeft ? 'left-aligned-menu' : ''}`} 
-            style={{ minWidth: '170px' }}
+            className="inline-link-toolbar-strip"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'rgba(15, 23, 42, 0.85)',
+              padding: '4px 8px',
+              borderRadius: '10px',
+              border: '1px solid rgba(99, 102, 241, 0.4)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(12px)',
+              whiteSpace: 'nowrap'
+            }}
           >
-            <div className="submenu-title">Path Settings</div>
+            {/* Icon-Only Path Styles */}
+            {[
+              { id: 'default', title: 'Curved Line', Icon: Spline },
+              { id: 'waypoints', title: 'Waypoints / Custom Multi-Bend Path', Icon: GitCommit },
+              { id: 'dotted', title: 'Dotted Line', Icon: MoreHorizontal },
+              { id: 'arrow', title: 'Arrow Line', Icon: ArrowRight },
+              { id: 'smooth-90', title: '90° Orthogonal Line', Icon: CornerDownRight },
+            ].map((opt) => {
+              const IconComp = opt.Icon;
+              const isActive = connectorStyle === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onChangeConnectorStyle(opt.id)}
+                  title={opt.title}
+                  style={{
+                    background: isActive ? 'rgba(99, 102, 241, 0.35)' : 'transparent',
+                    color: isActive ? '#a5b4fc' : '#94a3b8',
+                    border: isActive ? '1px solid #6366f1' : '1px solid transparent',
+                    borderRadius: '6px',
+                    padding: '5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    flexShrink: 0
+                  }}
+                >
+                  <IconComp size={15} />
+                </button>
+              );
+            })}
 
-            <button
-              className={`submenu-btn ${activeConnectorSubmenu === 'style' ? 'active' : ''}`}
-              onClick={() => setActiveConnectorSubmenu(activeConnectorSubmenu === 'style' ? null : 'style')}
-              style={{ justifyContent: 'space-between', display: 'flex', width: '100%' }}
-            >
-              <span>📐 Path Style</span>
-              <span>{isMenuLeft ? '◂' : '▸'}</span>
-            </button>
+            {/* Icon-Only Line Weight / Thickness */}
+            {[
+              { id: 1.5, title: 'Thin Line (1.5px)', stroke: 1 },
+              { id: 2.5, title: 'Medium Line (2.5px)', stroke: 2.5 },
+              { id: 4.5, title: 'Thick Line (4.5px)', stroke: 4.5 },
+            ].map((opt) => {
+              const isActive = connectorThickness === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onChangeConnectorThickness(opt.id)}
+                  title={opt.title}
+                  style={{
+                    background: isActive ? 'rgba(59, 130, 246, 0.35)' : 'transparent',
+                    color: isActive ? '#93c5fd' : '#94a3b8',
+                    border: isActive ? '1px solid #3b82f6' : '1px solid transparent',
+                    borderRadius: '6px',
+                    padding: '5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    flexShrink: 0
+                  }}
+                >
+                  <Minus size={14} style={{ strokeWidth: opt.stroke }} />
+                </button>
+              );
+            })}
 
-            <button
-              className={`submenu-btn ${activeConnectorSubmenu === 'flow' ? 'active' : ''}`}
-              onClick={() => setActiveConnectorSubmenu(activeConnectorSubmenu === 'flow' ? null : 'flow')}
-              style={{ justifyContent: 'space-between', display: 'flex', width: '100%' }}
-            >
-              <span>⚡ Flow Effects</span>
-              <span>{isMenuLeft ? '◂' : '▸'}</span>
-            </button>
+            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.15)', margin: '0 3px', flexShrink: 0 }} />
 
-            <button
-              className={`submenu-btn ${activeConnectorSubmenu === 'weight' ? 'active' : ''}`}
-              onClick={() => setActiveConnectorSubmenu(activeConnectorSubmenu === 'weight' ? null : 'weight')}
-              style={{ justifyContent: 'space-between', display: 'flex', width: '100%' }}
-            >
-              <span>⚖️ Line Weight</span>
-              <span>{isMenuLeft ? '◂' : '▸'}</span>
-            </button>
+            {/* Icon-Only Flow Effects */}
+            {[
+              { id: 'none', title: 'Static Line (No Effect)', Icon: CircleDot },
+              { id: 'flow-forward', title: 'Flowing Animation', Icon: ChevronsRight },
+              { id: 'pulse', title: 'Pulse Glow Animation', Icon: Zap },
+            ].map((opt) => {
+              const IconComp = opt.Icon;
+              const isActive = connectorAnimation === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onChangeConnectorAnimation(opt.id)}
+                  title={opt.title}
+                  style={{
+                    background: isActive ? 'rgba(168, 85, 247, 0.35)' : 'transparent',
+                    color: isActive ? '#e9d5ff' : '#94a3b8',
+                    border: isActive ? '1px solid #a855f7' : '1px solid transparent',
+                    borderRadius: '6px',
+                    padding: '5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    flexShrink: 0
+                  }}
+                >
+                  <IconComp size={14} />
+                </button>
+              );
+            })}
 
-            <button
-              className={`submenu-btn ${activeConnectorSubmenu === 'color' ? 'active' : ''}`}
-              onClick={() => setActiveConnectorSubmenu(activeConnectorSubmenu === 'color' ? null : 'color')}
-              style={{ justifyContent: 'space-between', display: 'flex', width: '100%' }}
-            >
-              <span>🎨 Color Preset</span>
-              <span>{isMenuLeft ? '◂' : '▸'}</span>
-            </button>
+            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.15)', margin: '0 3px', flexShrink: 0 }} />
 
-            {/* Nested Secondary Connector Menu */}
-            {activeConnectorSubmenu && (
-              <div 
-                className={`toolbar-submenu-secondary ${isMenuLeft ? 'left' : 'right'}`}
-              >
-                {activeConnectorSubmenu === 'style' && (
-                  <>
-                    <div className="submenu-title">Path Style</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
-                      {[
-                        { id: 'default', label: 'Curve' },
-                        { id: 'dotted', label: 'Dotted' },
-                        { id: 'arrow', label: 'Arrow' },
-                        { id: 'smooth-90', label: 'Smooth 90°', beta: true }
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          className={`submenu-btn ${connectorStyle === opt.id ? 'active' : ''}`}
-                          onClick={() => onChangeConnectorStyle(opt.id)}
-                          style={{ padding: '0.35rem 0.45rem', justifyContent: 'center', gap: '3px' }}
-                        >
-                          <span>{opt.label}</span>
-                          {opt.beta && (
-                            <span style={{ fontSize: '7px', opacity: 0.8, color: 'var(--accent-amber)', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)', padding: '1px 3px', borderRadius: '3px', fontWeight: 800 }}>BETA</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {activeConnectorSubmenu === 'flow' && (
-                  <>
-                    <div className="submenu-title">Flow Effects</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      {[
-                        { id: 'none', label: '🚫 Static (None)' },
-                        { id: 'flow-forward', label: '➔ Forward Flow' },
-                        { id: 'flow-backward', label: '⬅️ Backward Flow' },
-                        { id: 'pulse', label: '🔆 Pulse Glow' }
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          className={`submenu-btn ${connectorAnimation === opt.id ? 'active' : ''}`}
-                          onClick={() => onChangeConnectorAnimation(opt.id)}
-                        >
-                          <span>{opt.label}</span>
-                          {connectorAnimation === opt.id && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {activeConnectorSubmenu === 'weight' && (
-                  <>
-                    <div className="submenu-title">Line Weight</div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      {[
-                        { id: 1.5, label: 'Thin' },
-                        { id: 2.5, label: 'Med' },
-                        { id: 4.5, label: 'Thick' }
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          className={`submenu-btn ${connectorThickness === opt.id ? 'active' : ''}`}
-                          onClick={() => onChangeConnectorThickness(opt.id)}
-                          style={{ flex: 1, padding: '0.35rem 0', justifyContent: 'center' }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {activeConnectorSubmenu === 'color' && (
-                  <>
-                    <div className="submenu-title">Connector Color</div>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
-                      {[
-                        { id: 'auto', label: 'Auto', color: '#6366f1' },
-                        { id: '#f87171', label: 'Red', color: '#f87171' },
-                        { id: '#4ade80', label: 'Green', color: '#4ade80' },
-                        { id: '#60a5fa', label: 'Blue', color: '#60a5fa' },
-                        { id: '#facc15', label: 'Yellow', color: '#facc15' },
-                        { id: '#c084fc', label: 'Purple', color: '#c084fc' }
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => onChangeConnectorColor(opt.id)}
-                          style={{
-                            width: '18px',
-                            height: '18px',
-                            borderRadius: '50%',
-                            backgroundColor: opt.color,
-                            border: connectorColor === opt.id ? '2px solid #fff' : '1px solid rgba(255,255,255,0.2)',
-                            boxShadow: connectorColor === opt.id ? '0 0 6px ' + opt.color : 'none',
-                            cursor: 'pointer',
-                            padding: 0
-                          }}
-                          title={opt.label}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            {/* Color Swatches */}
+            {[
+              { id: 'auto', title: 'Auto Color (Based on Card)', color: '#38bdf8' },
+              { id: '#ffffff', title: 'White', color: '#ffffff' },
+              { id: '#6366f1', title: 'Indigo', color: '#6366f1' },
+              { id: '#10b981', title: 'Emerald', color: '#10b981' },
+              { id: '#ef4444', title: 'Rose', color: '#ef4444' },
+            ].map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onChangeConnectorColor(c.id)}
+                title={c.title}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  backgroundColor: c.color,
+                  border: connectorColor === c.id ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.25)',
+                  cursor: 'pointer',
+                  boxShadow: connectorColor === c.id ? '0 0 8px ' + c.color : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  flexShrink: 0
+                }}
+              />
+            ))}
           </div>
-        )}
+        </div>
       </div>
 
       {/* 5. DRAWING PEN MODE */}
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <button
           className={`vertical-toolbar-btn ${toolMode === 'pen' || activeMenu === 'pen' ? 'active' : ''}`}
           onClick={() => {
@@ -503,74 +516,114 @@ function LeftVerticalToolbar({
           <span className="toolbar-btn-shortcut-badge">P</span>
         </button>
 
-        {activeMenu === 'pen' && (
-          <div className={`toolbar-submenu ${isHorizontal ? 'horizontal' : ''} ${isMenuLeft ? 'left-aligned-menu' : ''}`} style={{ minWidth: '170px' }}>
-            <div className="submenu-title">Pen Settings</div>
-
-            {/* BRUSH COLOR */}
-            <div className="submenu-section-title">Brush Color</div>
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', padding: '0.2rem 0' }}>
-              {[
-                { hex: '#ffffff', label: 'White' },
-                { hex: '#f87171', label: 'Red' },
-                { hex: '#4ade80', label: 'Green' },
-                { hex: '#60a5fa', label: 'Blue' },
-                { hex: '#facc15', label: 'Yellow' },
-                { hex: '#c084fc', label: 'Purple' }
-              ].map((col) => (
-                <button
-                  key={col.hex}
-                  onClick={() => onChangePenColor(col.hex)}
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    borderRadius: '50%',
-                    backgroundColor: col.hex,
-                    border: penColor === col.hex ? '2px solid var(--accent-indigo)' : '1px solid rgba(255,255,255,0.25)',
-                    boxShadow: penColor === col.hex ? '0 0 8px var(--accent-indigo)' : 'none',
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
-                  title={col.label}
-                />
-              ))}
-              <input
-                type="color"
-                value={penColor || '#ffffff'}
-                onChange={(e) => onChangePenColor(e.target.value)}
+        {/* INLINE EXPANDABLE PENCIL MENU */}
+        <div
+          className="inline-pen-toolbar-wrapper"
+          style={{
+            maxWidth: activeMenu === 'pen' ? '400px' : '0px',
+            opacity: activeMenu === 'pen' ? 1 : 0,
+            marginLeft: activeMenu === 'pen' ? '6px' : '0px',
+            transform: activeMenu === 'pen' ? 'scaleX(1)' : 'scaleX(0.85)',
+            transformOrigin: 'left center',
+            overflow: 'hidden',
+            pointerEvents: activeMenu === 'pen' ? 'auto' : 'none',
+            transition: 'all 0.32s cubic-bezier(0.16, 1, 0.3, 1)',
+            display: 'flex',
+            alignItems: 'center',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <div 
+            className="inline-pen-toolbar-strip"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'rgba(15, 23, 42, 0.85)',
+              padding: '4px 8px',
+              borderRadius: '10px',
+              border: '1px solid rgba(6, 182, 212, 0.4)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(12px)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {/* Brush Sizes */}
+            {[
+              { size: 2, label: 'Thin' },
+              { size: 5, label: 'Med' },
+              { size: 10, label: 'Thick' },
+              { size: 18, label: 'Huge' }
+            ].map((opt) => (
+              <button
+                key={opt.size}
+                type="button"
+                onClick={() => onChangePenThickness(opt.size)}
                 style={{
-                  width: '20px',
-                  height: '20px',
-                  padding: 0,
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer'
+                  background: penThickness === opt.size ? 'rgba(6, 182, 212, 0.35)' : 'transparent',
+                  color: penThickness === opt.size ? '#cffafe' : '#94a3b8',
+                  border: penThickness === opt.size ? '1px solid #06b6d4' : '1px solid transparent',
+                  borderRadius: '6px',
+                  padding: '3px 7px',
+                  fontSize: '0.72rem',
+                  fontWeight: penThickness === opt.size ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  flexShrink: 0
                 }}
-                title="Pick custom brush color"
-              />
-            </div>
+              >
+                {opt.label}
+              </button>
+            ))}
 
-            {/* BRUSH THICKNESS */}
-            <div className="submenu-section-title">Brush Size</div>
-            <div style={{ display: 'flex', gap: '3px' }}>
-              {[
-                { size: 2, label: 'Thin' },
-                { size: 5, label: 'Med' },
-                { size: 10, label: 'Thick' },
-                { size: 18, label: 'Huge' }
-              ].map((opt) => (
-                <button
-                  key={opt.size}
-                  className={`submenu-btn ${penThickness === opt.size ? 'active' : ''}`}
-                  onClick={() => onChangePenThickness(opt.size)}
-                  style={{ flex: 1, padding: '0.35rem 0', justifyContent: 'center', fontSize: '0.68rem' }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.15)', margin: '0 3px', flexShrink: 0 }} />
+
+            {/* Brush Colors */}
+            {[
+              { hex: '#ffffff', label: 'White' },
+              { hex: '#f87171', label: 'Red' },
+              { hex: '#4ade80', label: 'Green' },
+              { hex: '#60a5fa', label: 'Blue' },
+              { hex: '#facc15', label: 'Yellow' },
+              { hex: '#c084fc', label: 'Purple' }
+            ].map((col) => (
+              <button
+                key={col.hex}
+                type="button"
+                onClick={() => onChangePenColor(col.hex)}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  backgroundColor: col.hex,
+                  border: penColor === col.hex ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.25)',
+                  boxShadow: penColor === col.hex ? '0 0 8px ' + col.hex : 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  flexShrink: 0,
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+                title={col.label}
+              />
+            ))}
+
+            <input
+              type="color"
+              value={penColor || '#ffffff'}
+              onChange={(e) => onChangePenColor(e.target.value)}
+              style={{
+                width: '18px',
+                height: '18px',
+                padding: 0,
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              title="Pick custom brush color"
+            />
           </div>
-        )}
+        </div>
       </div>
 
       {/* 6. ERASER */}

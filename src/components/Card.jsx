@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw, GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag, Lock, Unlock } from 'lucide-react';
 
 const COLORS = [
@@ -96,7 +97,8 @@ function Card({
   isParentGroupLocked = false,
   showTextFormatBar = false,
   showBadgePicker = false,
-  onCloseBadgePicker
+  onCloseBadgePicker,
+  onToggleBadgePicker
 }) {
   const isViewOnly = isViewOnlyGlobal || card.isLocked || isParentGroupLocked || isDimmed;
   const features = card.features || {
@@ -140,6 +142,45 @@ function Card({
   const lastCoordsRef = useRef({ x: 0, y: 0 });
   const colorPickerRef = useRef(null);
   const badgePickerRef = useRef(null);
+  const badgeSlotRef = useRef(null);
+
+  const [badgePickerPos, setBadgePickerPos] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!showBadgePicker || !badgeSlotRef.current) return;
+
+    const updateCoords = () => {
+      if (!badgeSlotRef.current) return;
+      const anchorRect = badgeSlotRef.current.getBoundingClientRect();
+      const pickerWidth = 230;
+      const pickerHeight = 280;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      let targetTop = anchorRect.bottom + 6;
+      let targetLeft = anchorRect.right - pickerWidth;
+
+      if (targetTop + pickerHeight > viewportHeight - 12) {
+        targetTop = anchorRect.top - pickerHeight - 6;
+      }
+
+      if (targetTop < 12) targetTop = 12;
+      if (targetLeft + pickerWidth > viewportWidth - 12) {
+        targetLeft = viewportWidth - pickerWidth - 12;
+      }
+      if (targetLeft < 12) targetLeft = 12;
+
+      setBadgePickerPos({ left: targetLeft, top: targetTop });
+    };
+
+    updateCoords();
+    window.addEventListener('resize', updateCoords);
+    window.addEventListener('scroll', updateCoords, true);
+    return () => {
+      window.removeEventListener('resize', updateCoords);
+      window.removeEventListener('scroll', updateCoords, true);
+    };
+  }, [showBadgePicker, card.x, card.y, zoom]);
 
   // Auto-close popovers on clicking outside the card / popover
   useEffect(() => {
@@ -1023,28 +1064,29 @@ function Card({
         </div>
       )}
 
-      {/* Floating Custom Badge & Tag Picker Overlay (OUTSIDE .card-content-container) */}
-      {showBadgePicker && (
+      {/* Floating Custom Badge & Tag Picker Overlay via Portal */}
+      {showBadgePicker && badgePickerPos && createPortal(
         <div
           ref={badgePickerRef}
           className="card-badge-picker-overlay glass"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 8px)',
-            right: '0',
-            background: 'rgba(18, 18, 28, 0.95)',
-            backdropFilter: 'blur(16px)',
+            position: 'fixed',
+            left: `${badgePickerPos.left}px`,
+            top: `${badgePickerPos.top}px`,
+            background: 'rgba(15, 17, 26, 0.97)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(255, 255, 255, 0.18)',
-            borderRadius: '12px',
-            padding: '0.7rem 0.9rem',
-            zIndex: 500,
-            boxShadow: '0 12px 35px rgba(0, 0, 0, 0.6)',
-            width: '220px',
+            borderRadius: '14px',
+            padding: '0.75rem 0.95rem',
+            zIndex: 999999,
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.2)',
+            width: '230px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.6rem'
+            gap: '0.65rem'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1153,7 +1195,6 @@ function Card({
                 );
               })}
 
-              {/* Custom High-Tone Color Input */}
               <input
                 type="color"
                 value={card.badge?.color || card.color || '#881337'}
@@ -1200,7 +1241,8 @@ function Card({
               Remove Badge
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
       <div className="card-content-container">
         {/* Card Header */}
@@ -1258,6 +1300,41 @@ function Card({
                 onClick={(e) => e.stopPropagation()}
                 readOnly={isViewOnly}
               />
+
+              <div className="card-header-badge-slot" ref={badgeSlotRef}>
+                {currentBadge ? (
+                  <button
+                    type="button"
+                    className="card-badge-pill"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (showBadgePicker) onCloseBadgePicker && onCloseBadgePicker();
+                      else onToggleBadgePicker && onToggleBadgePicker(card.id, e);
+                    }}
+                    style={{ background: currentBadge.color || 'var(--accent-rose)' }}
+                    title="Click to edit status badge"
+                  >
+                    <Tag size={10} />
+                    <span>{currentBadge.text}</span>
+                  </button>
+                ) : (
+                  !isViewOnly && (
+                    <button
+                      type="button"
+                      className="add-badge-hover-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (showBadgePicker) onCloseBadgePicker && onCloseBadgePicker();
+                        else onToggleBadgePicker && onToggleBadgePicker(card.id, e);
+                      }}
+                      title="Add status badge"
+                    >
+                      <Tag size={11} />
+                      <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>+ Badge</span>
+                    </button>
+                  )
+                )}
+              </div>
             </>
           )}
         </div>

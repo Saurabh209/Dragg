@@ -21,6 +21,8 @@ import {
 import './DevTool.css';
 
 export default function DevTool() {
+  if (!import.meta.env.DEV) return null;
+
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [activeTab, setActiveTab] = useState('features'); // 'features', 'hidden', 'stats'

@@ -288,11 +288,29 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   // For connection creation
   const [draftConnection, setDraftConnection] = useState(null);
+  const draftConnectionRef = useRef(null);
+  const justFinishedDraftRef = useRef(false);
   const [activeConnectorStyle, setActiveConnectorStyle] = useState('default');
   const [activeConnectorColor, setActiveConnectorColor] = useState('auto');
   const [activeConnectorAnimation, setActiveConnectorAnimation] = useState('none');
   const [activeConnectorThickness, setActiveConnectorThickness] = useState(2.5);
   const [cardNodeLayout, setCardNodeLayout] = useState('four-node'); // 'four-node' | 'freestyle'
+
+  const handleConnectorThicknessChange = (newThickness) => {
+    setActiveConnectorThickness(newThickness);
+  };
+
+  const handleConnectorStyleChange = (newStyle) => {
+    setActiveConnectorStyle(newStyle);
+  };
+
+  const handleConnectorColorChange = (newColor) => {
+    setActiveConnectorColor(newColor);
+  };
+
+  const handleConnectorAnimationChange = (newAnim) => {
+    setActiveConnectorAnimation(newAnim);
+  };
 
   // Custom clear board confirmation modal state
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -316,6 +334,55 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [contextMenu, setContextMenu] = useState(null);
   const [activeBadgePickerCardId, setActiveBadgePickerCardId] = useState(null);
   const contextMenuRef = useRef(null);
+
+  // Ghost Placement Shadow state for cursor-attached card creation
+  const [pendingPlacementCard, setPendingPlacementCard] = useState(null);
+  const [placementPos, setPlacementPos] = useState({ x: 150, y: 150 });
+  const lastPointerPosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+  useEffect(() => {
+    const handleGlobalPointerMove = (e) => {
+      lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
+
+      if (pendingPlacementCard && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const canvasX = (e.clientX - rect.left - pan.x) / zoom;
+        const canvasY = (e.clientY - rect.top - pan.y) / zoom;
+        setPlacementPos({
+          x: canvasX - (pendingPlacementCard.width || 250) / 2,
+          y: canvasY - (pendingPlacementCard.height || 180) / 2,
+        });
+      }
+    };
+
+    window.addEventListener('pointermove', handleGlobalPointerMove);
+    return () => window.removeEventListener('pointermove', handleGlobalPointerMove);
+  }, [pendingPlacementCard, pan, zoom]);
+
+  const startCardPlacement = (newCard) => {
+    let initX = 150;
+    let initY = 150;
+    if (containerRef.current && lastPointerPosRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      initX = (lastPointerPosRef.current.x - rect.left - pan.x) / zoom - (newCard.width || 250) / 2;
+      initY = (lastPointerPosRef.current.y - rect.top - pan.y) / zoom - (newCard.height || 180) / 2;
+    }
+    setPlacementPos({ x: initX, y: initY });
+    setPendingPlacementCard(newCard);
+    showToast('Click anywhere on canvas to place card (Esc to cancel)', 'info');
+  };
+
+  // Cancel placement on Esc key
+  useEffect(() => {
+    const handleEscPlacement = (e) => {
+      if (e.key === 'Escape' && pendingPlacementCard) {
+        setPendingPlacementCard(null);
+        showToast('Card placement canceled.');
+      }
+    };
+    window.addEventListener('keydown', handleEscPlacement);
+    return () => window.removeEventListener('keydown', handleEscPlacement);
+  }, [pendingPlacementCard]);
 
   useLayoutEffect(() => {
     if (!contextMenu || !contextMenuRef.current) return;
@@ -1260,6 +1327,60 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const handleContainerMouseDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // Left click only for mouse
 
+    if (pendingPlacementCard) {
+      if (e.target.closest('.modal-content') || e.target.closest('.vertical-toolbar-container')) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const placedCard = {
+        ...pendingPlacementCard,
+        x: placementPos.x,
+        y: placementPos.y,
+      };
+      setCards((prev) => [...prev, placedCard]);
+      setSelectedCardId(placedCard.id);
+      setPendingPlacementCard(null);
+      showToast(`${placedCard.title || 'Card'} placed!`, 'success');
+      return;
+    }
+
+    // DRAFT CONNECTION WAYPOINT PLACEMENT ON CANVAS CLICK
+    if (draftConnectionRef.current) {
+      const clickedCardWrapper = e.target.closest('.card-wrapper');
+      if (clickedCardWrapper) {
+        const clickedCardId = clickedCardWrapper.getAttribute('data-card-id');
+        if (clickedCardId && clickedCardId !== draftConnectionRef.current.fromCardId) {
+          handleStartConnection(clickedCardId, 'connector', e);
+          return;
+        }
+      }
+
+      if (e.target.closest('.toolbar-container') || e.target.closest('.vertical-toolbar-container')) {
+        return;
+      }
+
+      // ONLY PLACE WAYPOINT ANCHORS IF 'WAYPOINTS' CONNECTOR MODE IS ACTIVE
+      if (activeConnectorStyle === 'waypoints') {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const coords = screenToCanvas(e.clientX, e.clientY);
+        const newWaypoints = [...(draftConnectionRef.current.waypoints || []), coords];
+        const updated = {
+          ...draftConnectionRef.current,
+          waypoints: newWaypoints
+        };
+        draftConnectionRef.current = updated;
+        setDraftConnection(updated);
+        showToast('Waypoint anchor added! Click another point to bend, or click a card to finish.', 'info');
+        return;
+      } else {
+        // Normal connector styles (Curve, Dotted, Arrow, 90°): clicking canvas cancels draft
+        setDraftConnection(null);
+        draftConnectionRef.current = null;
+        return;
+      }
+    }
+
     // STROKE ERASER MODE
     if (toolMode === 'eraser') {
       if (isViewOnly) {
@@ -1780,9 +1901,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       nodeLayout: cardNodeLayout
     };
 
-    setCards((prev) => [...prev, newCard]);
-    setSelectedCardId(newCard.id);
-    showToast(`${cardType.charAt(0).toUpperCase() + cardType.slice(1)} card added!`, 'success');
+    startCardPlacement(newCard);
   };
 
   // Add heading-only node
@@ -1827,9 +1946,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       nodeLayout: 'four-node'
     };
 
-    setCards((prev) => [...prev, newCard]);
-    setSelectedCardId(newCard.id);
-    showToast('Minimal card added!');
+    startCardPlacement(newCard);
   };
 
   // Perform card creation after features selection
@@ -1880,10 +1997,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       nodeLayout: cardNodeLayout
     };
 
-    setCards((prev) => [...prev, newCard]);
-    setSelectedCardId(newCard.id);
     setShowAddCardModal(false);
-    showToast('Card added!');
+    startCardPlacement(newCard);
   };
 
   // Add image card
@@ -1918,9 +2033,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       color: 'slate',
     };
 
-    setCards((prev) => [...prev, newImageCard]);
-    setSelectedCardId(newImageCard.id);
-    showToast('Image uploaded!');
+    startCardPlacement(newImageCard);
   };
 
   // Update card values (supports group movement delta when multiple cards selected)
@@ -2167,6 +2280,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         return;
       }
 
+      if (e.key === 'Escape') {
+        if (draftConnectionRef.current) {
+          setDraftConnection(null);
+          draftConnectionRef.current = null;
+          showToast('Connection placement cancelled.', 'info');
+        }
+      }
+
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedCardIds.length > 0) {
         e.preventDefault();
         handleDeleteCard(selectedCardIds[0]);
@@ -2182,6 +2303,60 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
       showToast('Board is locked. Enter password to connect cards.', 'error');
       return;
     }
+
+    if (justFinishedDraftRef.current) return;
+
+    // IF A DRAFT CONNECTION IS ALREADY ACTIVE AND USER CLICKS ANOTHER CARD (Card B):
+    if (draftConnectionRef.current && draftConnectionRef.current.fromCardId !== cardId) {
+      const activeDraft = draftConnectionRef.current;
+      const targetCard = cards.find((c) => c.id === cardId);
+      if (targetCard) {
+        const initialCanvasCoords = screenToCanvas(e.clientX, e.clientY);
+        const isTargetFreestyle = targetCard.nodeLayout === 'freestyle';
+        const targetSide = fromSideInput === 'connector' ? getClosestSide(targetCard, initialCanvasCoords) : (fromSideInput || 'left');
+
+        let toOffsetX = undefined;
+        let toOffsetY = undefined;
+        if (isTargetFreestyle) {
+          const rectB = {
+            left: targetCard.x,
+            top: targetCard.y,
+            right: targetCard.x + (targetCard.width || 250),
+            bottom: targetCard.y + (targetCard.height || 200)
+          };
+          const snapped = getClosestPointOnRectBorder(initialCanvasCoords, rectB);
+          toOffsetX = snapped.x - targetCard.x;
+          toOffsetY = snapped.y - targetCard.y;
+        }
+
+        const newConnection = {
+          id: Math.random().toString(36).substring(2, 9),
+          fromCardId: activeDraft.fromCardId,
+          fromSide: activeDraft.fromSide,
+          toCardId: targetCard.id,
+          toSide: targetSide,
+          fromOffsetX: activeDraft.fromOffsetX,
+          fromOffsetY: activeDraft.fromOffsetY,
+          toOffsetX,
+          toOffsetY,
+          label: '',
+          style: (activeDraft.waypoints && activeDraft.waypoints.length > 0) ? 'waypoints' : activeConnectorStyle,
+          color: activeConnectorColor,
+          animation: activeConnectorAnimation,
+          thickness: activeConnectorThickness,
+          waypoints: activeDraft.waypoints || [],
+        };
+
+        setConnections((prev) => [...prev, newConnection]);
+        setDraftConnection(null);
+        draftConnectionRef.current = null;
+        justFinishedDraftRef.current = true;
+        setTimeout(() => { justFinishedDraftRef.current = false; }, 350);
+        showToast('Cards connected maintaining your custom path!', 'success');
+        return;
+      }
+    }
+
     const card = cards.find((c) => c.id === cardId);
     if (!card) return;
 
@@ -2198,19 +2373,34 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     const fromOffsetX = fromSide === 'freestyle' ? (startPort.x - card.x) : undefined;
     const fromOffsetY = fromSide === 'freestyle' ? (startPort.y - card.y) : undefined;
 
-    setDraftConnection({
+    const initDraft = {
       fromCardId: cardId,
       fromSide,
       start: startPort,
       current: startPort,
-    });
+      waypoints: [],
+      fromOffsetX,
+      fromOffsetY
+    };
+    setDraftConnection(initDraft);
+    draftConnectionRef.current = initDraft;
 
     const handleMouseMove = (moveEvent) => {
       const canvasCoords = screenToCanvas(moveEvent.clientX, moveEvent.clientY);
-      setDraftConnection((prev) => (prev ? { ...prev, current: canvasCoords } : null));
+      if (draftConnectionRef.current) {
+        const updated = { ...draftConnectionRef.current, current: canvasCoords };
+        draftConnectionRef.current = updated;
+        setDraftConnection(updated);
+      }
     };
 
     const handleMouseUp = (upEvent) => {
+      if (justFinishedDraftRef.current || !draftConnectionRef.current) {
+        document.removeEventListener('pointermove', handleMouseMove);
+        document.removeEventListener('pointerup', handleMouseUp);
+        return;
+      }
+
       const canvasCoords = screenToCanvas(upEvent.clientX, upEvent.clientY);
 
       const targetCard = cards.find((c) => {
@@ -2250,6 +2440,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         );
 
         if (!exists) {
+          const currentWaypoints = draftConnectionRef.current?.waypoints || [];
           const newConnection = {
             id: Math.random().toString(36).substring(2, 9),
             fromCardId: cardId,
@@ -2261,21 +2452,25 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             toOffsetX,
             toOffsetY,
             label: '',
-            style: activeConnectorStyle,
+            style: (currentWaypoints && currentWaypoints.length > 0) ? 'waypoints' : activeConnectorStyle,
             color: activeConnectorColor,
             animation: activeConnectorAnimation,
             thickness: activeConnectorThickness,
+            waypoints: currentWaypoints,
           };
           setConnections((prev) => [...prev, newConnection]);
-          showToast('Cards connected!');
+          showToast('Cards connected successfully!');
         } else {
           showToast('Connection already exists between these ports.', 'error');
         }
-      }
 
-      setDraftConnection(null);
-      document.removeEventListener('pointermove', handleMouseMove);
-      document.removeEventListener('pointerup', handleMouseUp);
+        setDraftConnection(null);
+        draftConnectionRef.current = null;
+        justFinishedDraftRef.current = true;
+        setTimeout(() => { justFinishedDraftRef.current = false; }, 350);
+        document.removeEventListener('pointermove', handleMouseMove);
+        document.removeEventListener('pointerup', handleMouseUp);
+      }
     };
 
     document.addEventListener('pointermove', handleMouseMove);
@@ -2347,8 +2542,78 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     return bestSide;
   };
 
+  // Catmull-Rom Spline generator: curve passes 100% PRECISELY through every waypoint
+  const getSmoothWaypointsPath = (points) => {
+    if (!points || points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    if (points.length === 2) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
+
+    const k = 0.25; // Tension factor (buttery smooth curve)
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i === 0 ? 0 : i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2 >= points.length ? points.length - 1 : i + 2];
+
+      const cp1x = p1.x + (p2.x - p0.x) * k;
+      const cp1y = p1.y + (p2.y - p0.y) * k;
+      const cp2x = p2.x - (p3.x - p1.x) * k;
+      const cp2y = p2.y - (p3.y - p1.y) * k;
+
+      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+
+    return d;
+  };
+
+  const handleStartDragWaypoint = (e, connId, wpIdx) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (isViewOnly) return;
+
+    const handleMouseMove = (moveEvent) => {
+      const coords = screenToCanvas(moveEvent.clientX, moveEvent.clientY);
+      setConnections((prev) => prev.map((c) => {
+        if (c.id !== connId) return c;
+        const newWaypoints = [...(c.waypoints || [])];
+        newWaypoints[wpIdx] = coords;
+        return { ...c, waypoints: newWaypoints };
+      }));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('pointermove', handleMouseMove);
+      document.removeEventListener('pointerup', handleMouseUp);
+    };
+
+    document.addEventListener('pointermove', handleMouseMove);
+    document.addEventListener('pointerup', handleMouseUp);
+  };
+
+  const handleDeleteWaypoint = (e, connId, wpIdx) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (isViewOnly) return;
+
+    setConnections((prev) => prev.map((c) => {
+      if (c.id !== connId) return c;
+      const newWaypoints = (c.waypoints || []).filter((_, idx) => idx !== wpIdx);
+      return { ...c, waypoints: newWaypoints };
+    }));
+    showToast('Waypoint removed.');
+  };
+
   // Path SVG builder and midpoint calculator for connections
-  const getPathProperties = (from, to, sideA, sideB, style, cardA, cardB) => {
+  const getPathProperties = (from, to, sideA, sideB, style, cardA, cardB, waypoints) => {
+    if (waypoints && waypoints.length > 0) {
+      const allPoints = [from, ...waypoints, to];
+      const pathStr = getSmoothWaypointsPath(allPoints);
+      const midIdx = Math.floor(allPoints.length / 2);
+      const midpoint = allPoints[midIdx] || { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      return { pathStr, midpoint, debugCandidates: [] };
+    }
     const dx = Math.abs(to.x - from.x);
     const dy = Math.abs(to.y - from.y);
     const offset = Math.min(120, Math.max(40, Math.max(dx, dy) * 0.4));
@@ -2615,7 +2880,24 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     showToast('Canvas wiped clean.');
   };
 
+
+
   const handleCanvasClick = (e) => {
+    if (pendingPlacementCard) {
+      if (e.target.closest('.modal-content') || e.target.closest('.vertical-toolbar-container')) return;
+      e.stopPropagation();
+      const placedCard = {
+        ...pendingPlacementCard,
+        x: placementPos.x,
+        y: placementPos.y,
+      };
+      setCards((prev) => [...prev, placedCard]);
+      setSelectedCardId(placedCard.id);
+      setPendingPlacementCard(null);
+      showToast(`${placedCard.title || 'Card'} placed!`, 'success');
+      return;
+    }
+
     if (justSelectedRef.current) {
       justSelectedRef.current = false;
       return;
@@ -2934,6 +3216,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
     const contentMatch = contentPlain.includes(query);
     return titleMatch || contentMatch;
   });
+
+
 
   return (
     <div className={`board-workspace-wrapper ${isCodePanelOpen ? 'split-screen-active' : ''}`} style={{ display: 'flex', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
@@ -3542,7 +3826,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
               const connAnim = conn.animation || 'none';
               const connThickness = conn.thickness !== undefined ? conn.thickness : 2.5;
 
-              const { pathStr, midpoint, debugCandidates } = getPathProperties(from, to, logicalSideA, logicalSideB, connStyle, cardA, cardB);
+              const { pathStr, midpoint, debugCandidates } = getPathProperties(from, to, logicalSideA, logicalSideB, connStyle, cardA, cardB, conn.waypoints);
 
               const isConnDimmed = highlightedPathConnectionIds && !highlightedPathConnectionIds.includes(conn.id);
               const sourceDepth = highlightedPathCardDepths
@@ -3598,8 +3882,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                     strokeWidth={connThickness}
                     className={pathClass}
                     stroke={conn.color && conn.color !== 'auto' ? conn.color : `url(#grad-${conn.id})`}
-                    style={{ cursor: 'pointer', filter: connAnim !== 'pulse' ? 'drop-shadow(0 0 4px rgba(99, 102, 241, 0.25))' : 'none' }}
-                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90') ? `url(#arrow-${conn.id})` : undefined}
+                    style={{ strokeWidth: `${connThickness}px`, cursor: 'pointer', filter: connAnim !== 'pulse' ? 'drop-shadow(0 0 4px rgba(99, 102, 241, 0.25))' : 'none' }}
+                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90' || connStyle === 'waypoints') ? `url(#arrow-${conn.id})` : undefined}
                   />
 
                   <path
@@ -3611,6 +3895,33 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                     onClick={() => handleDeleteConnection(conn.id)}
                     title="Click to delete connection"
                   />
+
+                  {/* Waypoint handle dots for custom bent connections */}
+                  {conn.waypoints && conn.waypoints.map((wp, wpIdx) => (
+                    <g
+                      key={`wp-${conn.id}-${wpIdx}`}
+                      style={{ cursor: 'grab' }}
+                      onMouseDown={(e) => handleStartDragWaypoint(e, conn.id, wpIdx)}
+                      onDoubleClick={(e) => handleDeleteWaypoint(e, conn.id, wpIdx)}
+                    >
+                      <circle cx={wp.x} cy={wp.y} r="12" fill="transparent" title="Drag waypoint to bend line | Double click to remove" />
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r="6"
+                        fill="rgba(15, 23, 42, 0.95)"
+                        stroke={conn.color && conn.color !== 'auto' ? conn.color : '#06b6d4'}
+                        strokeWidth="2"
+                        style={{ filter: 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.8))' }}
+                      />
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r="2"
+                        fill="#ffffff"
+                      />
+                    </g>
+                  ))}
                 </g>
               );
             })}
@@ -3648,15 +3959,15 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                 }
               }
 
-              const draftStyle = activeConnectorStyle === 'smooth-90' ? 'smooth-90' : 'default';
               const draftPathProps = getPathProperties(
                 draftConnection.start,
                 draftEnd,
                 draftConnection.fromSide,
                 targetSide,
-                draftStyle,
+                activeConnectorStyle,
                 cards.find((c) => c.id === draftConnection.fromCardId),
-                dragTargetCard
+                dragTargetCard,
+                draftConnection.waypoints
               );
 
               return (
@@ -3676,8 +3987,38 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                   <path
                     d={draftPathProps.pathStr}
                     className="connection-draft"
+                    strokeWidth={activeConnectorThickness}
                     style={activeConnectorColor !== 'auto' ? { stroke: activeConnectorColor } : {}}
                   />
+                  {/* Waypoint handle dots for draft connection */}
+                  {draftConnection.waypoints && draftConnection.waypoints.map((wp, wpIdx) => (
+                    <g key={`draft-wp-${wpIdx}`}>
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r="8.5"
+                        fill="none"
+                        stroke="#38bdf8"
+                        strokeWidth="1.5"
+                        strokeDasharray="2 2"
+                        style={{ filter: 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.6))' }}
+                      />
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r="5"
+                        fill="rgba(15, 23, 42, 0.95)"
+                        stroke="#38bdf8"
+                        strokeWidth="2"
+                      />
+                      <circle
+                        cx={wp.x}
+                        cy={wp.y}
+                        r="1.8"
+                        fill="#ffffff"
+                      />
+                    </g>
+                  ))}
                   {dragTargetCard && (
                     <g className="snap-indicator">
                       <circle
@@ -3757,9 +4098,43 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                   showTextFormatBar={showTextFormatBar}
                   showBadgePicker={activeBadgePickerCardId === card.id}
                   onCloseBadgePicker={() => setActiveBadgePickerCardId(null)}
+                  onToggleBadgePicker={(cardId) => setActiveBadgePickerCardId((prev) => (prev === cardId ? null : cardId))}
                 />
               );
             })}
+
+            {/* Ghost Card Placement Preview attached to Cursor */}
+            {pendingPlacementCard && (
+              <div
+                className="ghost-card-placement-preview"
+                style={{
+                  position: 'absolute',
+                  left: placementPos.x,
+                  top: placementPos.y,
+                  pointerEvents: 'none',
+                  zIndex: 99999,
+                  opacity: 0.75,
+                  filter: 'drop-shadow(0 12px 32px rgba(0, 0, 0, 0.5))',
+                  transform: 'scale(1.01)'
+                }}
+              >
+                <Card
+                  card={{
+                    ...pendingPlacementCard,
+                    x: 0,
+                    y: 0
+                  }}
+                  isSelected={false}
+                  onSelect={() => {}}
+                  onUpdate={() => {}}
+                  onDelete={() => {}}
+                  zoom={zoom}
+                  onStartConnection={() => {}}
+                  toolMode="select"
+                  isViewOnly={true}
+                />
+              </div>
+            )}
           </div>
 
           {/* Marquee Drag Box Selection Overlay */}
@@ -3858,13 +4233,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
             onChangePenThickness={setPenThickness}
             isViewOnly={isViewOnly}
             connectorStyle={activeConnectorStyle}
-            onChangeConnectorStyle={setActiveConnectorStyle}
+            onChangeConnectorStyle={handleConnectorStyleChange}
             connectorColor={activeConnectorColor}
-            onChangeConnectorColor={setActiveConnectorColor}
+            onChangeConnectorColor={handleConnectorColorChange}
             connectorAnimation={activeConnectorAnimation}
-            onChangeConnectorAnimation={setActiveConnectorAnimation}
+            onChangeConnectorAnimation={handleConnectorAnimationChange}
             connectorThickness={activeConnectorThickness}
-            onChangeConnectorThickness={setActiveConnectorThickness}
+            onChangeConnectorThickness={handleConnectorThicknessChange}
             toolbarSettings={toolbarSettings}
             onChangeToolbarSettings={setToolbarSettings}
             stylePresets={stylePresets}
