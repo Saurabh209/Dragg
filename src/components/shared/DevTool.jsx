@@ -21,7 +21,23 @@ import {
 import './DevTool.css';
 
 export default function DevTool() {
-  if (!import.meta.env.DEV) return null;
+  const [isDevActive, setIsDevActive] = useState(() => {
+    const isUnlocked = typeof window !== 'undefined' && localStorage.getItem('dragg_force_dev_unlocked') === 'true';
+    const isSimulatedProd = typeof window !== 'undefined' && localStorage.getItem('dragg_simulated_prod') === 'true';
+    return isUnlocked || (import.meta.env.DEV && !isSimulatedProd);
+  });
+
+  useEffect(() => {
+    const handleEnvChange = () => {
+      const isUnlocked = typeof window !== 'undefined' && localStorage.getItem('dragg_force_dev_unlocked') === 'true';
+      const isSimulatedProd = typeof window !== 'undefined' && localStorage.getItem('dragg_simulated_prod') === 'true';
+      setIsDevActive(isUnlocked || (import.meta.env.DEV && !isSimulatedProd));
+    };
+    window.addEventListener('dragg-env-change', handleEnvChange);
+    return () => window.removeEventListener('dragg-env-change', handleEnvChange);
+  }, []);
+
+  if (!isDevActive) return null;
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);

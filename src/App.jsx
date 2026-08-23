@@ -87,6 +87,15 @@ function App() {
   const [showDevAuthModal, setShowDevAuthModal] = useState(false);
   const [devPasswordInput, setDevPasswordInput] = useState('');
   const [isDevUnlocked, setIsDevUnlocked] = useState(() => localStorage.getItem('dragg_force_dev_unlocked') === 'true');
+  const [isDevActive, setIsDevActive] = useState(() => checkIsDevMode());
+
+  useEffect(() => {
+    const handleEnvChange = () => {
+      setIsDevActive(checkIsDevMode());
+    };
+    window.addEventListener('dragg-env-change', handleEnvChange);
+    return () => window.removeEventListener('dragg-env-change', handleEnvChange);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -185,18 +194,8 @@ function App() {
   };
 
   const showToast = (message, type = 'success') => {
-    const id = Date.now();
-    setToasts((prev) => {
-      const filtered = prev.filter((t) => t.message !== message);
-      const updated = [...filtered, { id, message, type }];
-      if (updated.length > 3) {
-        return updated.slice(updated.length - 3);
-      }
-      return updated;
-    });
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    // Toast notifications completely disabled per user request
+    return;
   };
 
   return (
@@ -355,8 +354,8 @@ function App() {
         ))}
       </div>
 
-      {/* Embedded DevTool (Dev Mode Only) */}
-      {import.meta.env.DEV && <DevTool />}
+      {/* Embedded DevTool (Dev Mode or Forced Unlocked) */}
+      {isDevActive && <DevTool />}
     </>
   );
 }

@@ -524,6 +524,11 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
       }
     }
 
+    if (isViewOnly && !targetCardId && !highlightedPathCardDepths) {
+      setContextMenu(null);
+      return;
+    }
+
     const menuWidth = 230;
     const menuHeight = 450; // Conservative max height to ensure all options fit in viewport
 
@@ -1528,27 +1533,10 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
         return;
       }
 
-      // ONLY PLACE WAYPOINT ANCHORS IF 'WAYPOINTS' CONNECTOR MODE IS ACTIVE
-      if (activeConnectorStyle === 'waypoints') {
-        e.stopPropagation();
-        e.preventDefault();
-
-        const coords = screenToCanvas(e.clientX, e.clientY);
-        const newWaypoints = [...(draftConnectionRef.current.waypoints || []), coords];
-        const updated = {
-          ...draftConnectionRef.current,
-          waypoints: newWaypoints
-        };
-        draftConnectionRef.current = updated;
-        setDraftConnection(updated);
-        showToast('Waypoint anchor added! Click another point to bend, or click a card to finish.', 'info');
-        return;
-      } else {
-        // Normal connector styles (Curve, Dotted, Arrow, 90°): clicking canvas cancels draft
-        setDraftConnection(null);
-        draftConnectionRef.current = null;
-        return;
-      }
+      // Clicking canvas cancels draft connection
+      setDraftConnection(null);
+      draftConnectionRef.current = null;
+      return;
     }
 
     // STROKE ERASER MODE
@@ -2517,7 +2505,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
           toOffsetX,
           toOffsetY,
           label: '',
-          style: (activeDraft.waypoints && activeDraft.waypoints.length > 0) ? 'waypoints' : activeConnectorStyle,
+          style: activeConnectorStyle,
           color: activeConnectorColor,
           animation: activeConnectorAnimation,
           thickness: activeConnectorThickness,
@@ -2629,7 +2617,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
             toOffsetX,
             toOffsetY,
             label: '',
-            style: (currentWaypoints && currentWaypoints.length > 0) ? 'waypoints' : activeConnectorStyle,
+            style: activeConnectorStyle,
             color: activeConnectorColor,
             animation: activeConnectorAnimation,
             thickness: activeConnectorThickness,
@@ -2719,13 +2707,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
     return bestSide;
   };
 
-  // Catmull-Rom Spline generator: curve passes 100% PRECISELY through every waypoint
+  // Smooth Spline Path generator: curved path through waypoints
   const getSmoothWaypointsPath = (points) => {
     if (!points || points.length === 0) return '';
     if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
     if (points.length === 2) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
 
-    const k = 0.25; // Tension factor (buttery smooth curve)
+    const k = 0.25;
     let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
 
     for (let i = 0; i < points.length - 1; i++) {
@@ -2745,48 +2733,21 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
     return d;
   };
 
-  const handleStartDragWaypoint = (e, connId, wpIdx) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (isViewOnly) return;
-
-    const handleMouseMove = (moveEvent) => {
-      const coords = screenToCanvas(moveEvent.clientX, moveEvent.clientY);
-      setConnections((prev) => prev.map((c) => {
-        if (c.id !== connId) return c;
-        const newWaypoints = [...(c.waypoints || [])];
-        newWaypoints[wpIdx] = coords;
-        return { ...c, waypoints: newWaypoints };
-      }));
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener('pointermove', handleMouseMove);
-      document.removeEventListener('pointerup', handleMouseUp);
-    };
-
-    document.addEventListener('pointermove', handleMouseMove);
-    document.addEventListener('pointerup', handleMouseUp);
-  };
-
-  const handleDeleteWaypoint = (e, connId, wpIdx) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (isViewOnly) return;
-
-    setConnections((prev) => prev.map((c) => {
-      if (c.id !== connId) return c;
-      const newWaypoints = (c.waypoints || []).filter((_, idx) => idx !== wpIdx);
-      return { ...c, waypoints: newWaypoints };
-    }));
-    showToast('Waypoint removed.');
+  // Straight Waypoint Path generator: connects waypoints with straight line segments
+  const getWaypointsPath = (points) => {
+    if (!points || points.length === 0) return '';
+    return points.reduce((acc, p, idx) => {
+      const x = p.x.toFixed(1);
+      const y = p.y.toFixed(1);
+      return acc + (idx === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+    }, '');
   };
 
   // Path SVG builder and midpoint calculator for connections
   const getPathProperties = (from, to, sideA, sideB, style, cardA, cardB, waypoints) => {
     if (waypoints && waypoints.length > 0) {
       const allPoints = [from, ...waypoints, to];
-      const pathStr = getSmoothWaypointsPath(allPoints);
+      const pathStr = (style === 'default' || style === 'curve') ? getSmoothWaypointsPath(allPoints) : getWaypointsPath(allPoints);
       const midIdx = Math.floor(allPoints.length / 2);
       const midpoint = allPoints[midIdx] || { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
       return { pathStr, midpoint, debugCandidates: [] };
@@ -4058,9 +4019,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
                 else if (connAnim === 'flow-backward') pathClass += ' conn-anim-flow-backward';
               }
 
-              if (connAnim === 'pulse') {
-                pathClass += ' conn-anim-pulse';
-              }
+              const connGlowColor = (conn.color && conn.color !== 'auto') ? conn.color : '#38bdf8';
 
               return (
                 <g
@@ -4092,8 +4051,13 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
                     strokeWidth={connThickness}
                     className={pathClass}
                     stroke={conn.color && conn.color !== 'auto' ? conn.color : `url(#grad-${conn.id})`}
-                    style={{ strokeWidth: `${connThickness}px`, cursor: 'pointer', filter: connAnim !== 'pulse' ? 'drop-shadow(0 0 4px rgba(99, 102, 241, 0.25))' : 'none' }}
-                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90' || connStyle === 'waypoints') ? `url(#arrow-${conn.id})` : undefined}
+                    style={{
+                      strokeWidth: `${connThickness}px`,
+                      cursor: 'pointer',
+                      filter: 'drop-shadow(0 0 4px rgba(99, 102, 241, 0.25))',
+                      transition: 'filter 0.3s ease, stroke 0.3s ease'
+                    }}
+                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90' || conn.waypoints?.length > 0) ? `url(#arrow-${conn.id})` : undefined}
                   />
 
                   <path
@@ -4102,36 +4066,11 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
                     stroke="transparent"
                     strokeWidth="20"
                     style={{ cursor: 'pointer' }}
-                    onClick={() => handleDeleteConnection(conn.id)}
-                    title="Click to delete connection"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteConnection(conn.id); }}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteConnection(conn.id); }}
+                    title="Click or Right-click to delete connection"
                   />
 
-                  {/* Waypoint handle dots for custom bent connections */}
-                  {conn.waypoints && conn.waypoints.map((wp, wpIdx) => (
-                    <g
-                      key={`wp-${conn.id}-${wpIdx}`}
-                      style={{ cursor: 'grab' }}
-                      onMouseDown={(e) => handleStartDragWaypoint(e, conn.id, wpIdx)}
-                      onDoubleClick={(e) => handleDeleteWaypoint(e, conn.id, wpIdx)}
-                    >
-                      <circle cx={wp.x} cy={wp.y} r="12" fill="transparent" title="Drag waypoint to bend line | Double click to remove" />
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r="6"
-                        fill="rgba(15, 23, 42, 0.95)"
-                        stroke={conn.color && conn.color !== 'auto' ? conn.color : '#06b6d4'}
-                        strokeWidth="2"
-                        style={{ filter: 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.8))' }}
-                      />
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r="2"
-                        fill="#ffffff"
-                      />
-                    </g>
-                  ))}
                 </g>
               );
             })}
@@ -4206,25 +4145,16 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
                       <circle
                         cx={wp.x}
                         cy={wp.y}
-                        r="8.5"
-                        fill="none"
+                        r="4"
+                        fill="#0f172a"
                         stroke="#38bdf8"
                         strokeWidth="1.5"
-                        strokeDasharray="2 2"
-                        style={{ filter: 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.6))' }}
+                        style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }}
                       />
                       <circle
                         cx={wp.x}
                         cy={wp.y}
-                        r="5"
-                        fill="rgba(15, 23, 42, 0.95)"
-                        stroke="#38bdf8"
-                        strokeWidth="2"
-                      />
-                      <circle
-                        cx={wp.x}
-                        cy={wp.y}
-                        r="1.8"
+                        r="1.5"
                         fill="#ffffff"
                       />
                     </g>
@@ -5303,9 +5233,11 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
             </>
           ) : null}
 
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Canvas Actions
-          </span>
+          {(!isViewOnly || highlightedPathCardDepths) && (
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Canvas Actions
+            </span>
+          )}
 
           {!isViewOnly && (
             <>

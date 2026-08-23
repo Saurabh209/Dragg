@@ -850,25 +850,25 @@ function Dashboard({ onSelectBoard, showToast }) {
                   type="button"
                   className={`preset-card ${newBoardPreset === 'system_design' ? 'selected' : ''}`}
                   onClick={() => {
-                    if (!import.meta.env.DEV) {
+                    if (!isDevMode) {
                       showToast('System Design feature is under active development in Production.', 'info');
                       return;
                     }
                     setNewBoardPreset('system_design');
                   }}
-                  style={{ cursor: import.meta.env.DEV ? 'pointer' : 'not-allowed', opacity: import.meta.env.DEV ? 1 : 0.65 }}
+                  style={{ cursor: isDevMode ? 'pointer' : 'not-allowed', opacity: isDevMode ? 1 : 0.65 }}
                 >
-                  {import.meta.env.DEV ? (
+                  {isDevMode ? (
                     <span className="preset-card-badge" style={{ background: '#10b981', color: '#ffffff' }}>DEV MODE</span>
                   ) : (
                     <span className="preset-card-badge" style={{ background: '#f59e0b', color: '#ffffff' }}>UNDER DEVELOPMENT</span>
                   )}
                   <div className="preset-card-icon-container">
-                    <Layers size={18} style={{ color: import.meta.env.DEV ? '#10b981' : '#f59e0b' }} />
+                    <Layers size={18} style={{ color: isDevMode ? '#10b981' : '#f59e0b' }} />
                   </div>
                   <span className="preset-card-name">System Design</span>
                   <span className="preset-card-desc">
-                    {import.meta.env.DEV 
+                    {isDevMode 
                       ? 'Developer canvas preloaded with frontend, gateways, load balancers, DBs, and 90° links.' 
                       : 'Under Active Development (Available in Dev Mode).'}
                   </span>

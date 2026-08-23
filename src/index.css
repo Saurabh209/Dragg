@@ -435,15 +435,9 @@ h6 {
 
 .connection-line {
   fill: none;
-  transition: stroke 0.2s, stroke-width 0.2s, stroke-dashoffset 0.1s;
+  transition: stroke 0.3s ease, stroke-width 0.3s ease, filter 0.3s ease;
   pointer-events: stroke;
   cursor: pointer;
-}
-
-/* Hovering over any part of the connection group (including wide hover path) highlights the line */
-.connection-group:hover .connection-line {
-  stroke: var(--accent-rose) !important;
-  filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.6)) !important;
 }
 
 /* Connection Styles */

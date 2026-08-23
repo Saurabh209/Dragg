@@ -409,7 +409,6 @@ function LeftVerticalToolbar({
             {/* Icon-Only Path Styles */}
             {[
               { id: 'default', title: 'Curved Line', Icon: Spline },
-              { id: 'waypoints', title: 'Waypoints / Custom Multi-Bend Path', Icon: GitCommit },
               { id: 'dotted', title: 'Dotted Line', Icon: MoreHorizontal },
               { id: 'arrow', title: 'Arrow Line', Icon: ArrowRight },
               { id: 'smooth-90', title: '90° Orthogonal Line', Icon: CornerDownRight },
@@ -479,7 +478,6 @@ function LeftVerticalToolbar({
             {[
               { id: 'none', title: 'Static Line (No Effect)', Icon: CircleDot },
               { id: 'flow-forward', title: 'Flowing Animation', Icon: ChevronsRight },
-              { id: 'pulse', title: 'Pulse Glow Animation', Icon: Zap },
             ].map((opt) => {
               const IconComp = opt.Icon;
               const isActive = connectorAnimation === opt.id;

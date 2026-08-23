@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { checkIsDevMode } from '../../App';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -53,7 +54,7 @@ export default function SystemDesignCanvas({ boardId, onBack, showToast }) {
       </div>
 
       {/* Production Mode Floating Under Development Banner */}
-      {!import.meta.env.DEV && (
+      {!checkIsDevMode() && (
         <div
           style={{
             position: 'fixed',
