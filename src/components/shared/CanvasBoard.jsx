@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import LeftVerticalToolbar from './LeftVerticalToolbar';
-import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag, Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import GroupContainer from './GroupContainer';
 import SystemDesignCatalogModal from '../system_design/modals/SystemDesignCatalogModal';
@@ -1359,6 +1359,67 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
       if (isManual) {
         showToast('Error saving board: ' + err.message, 'error');
       }
+    }
+  };
+
+  // Download board data as clean JSON document excluding board name, password, and document metadata
+  const handleExportJSON = () => {
+    try {
+      const cleanCards = (cards || []).map((c) => {
+        const { _id, isPartialProtected, protectionMode, createdAt, updatedAt, __v, name, password, ...rest } = c;
+        return {
+          ...rest,
+          id: rest.id || (_id ? String(_id) : undefined)
+        };
+      });
+
+      const cleanConnections = (connections || []).map((conn) => {
+        const { _id, createdAt, updatedAt, __v, ...rest } = conn;
+        return { ...rest };
+      });
+
+      const cleanDrawings = (drawings || []).map((dw) => {
+        const { _id, createdAt, updatedAt, __v, ...rest } = dw;
+        return { ...rest };
+      });
+
+      const exportData = {
+        preset: boardPreset || 'freestyle',
+        language: boardLanguage || 'javascript',
+        code: boardCode || '',
+        boardBgColor: boardBgColor || '#0a0a0c',
+        liveBgStyle: liveBgStyle || 'none',
+        pan: pan || { x: 0, y: 0 },
+        zoom: zoom || 1,
+        toolbarSettings: toolbarSettings || {},
+        stylePresets: stylePresets || [],
+        cards: cleanCards,
+        connections: cleanConnections,
+        drawings: cleanDrawings
+      };
+
+      const sanitizedName = (boardName || 'whiteboard')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      const fileName = `${sanitizedName || 'whiteboard'}-export.json`;
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast('Board JSON exported successfully!', 'success');
+    } catch (err) {
+      console.error('Failed to export JSON:', err);
+      showToast('Error exporting JSON: ' + err.message, 'error');
     }
   };
 
@@ -3620,6 +3681,25 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBa
           >
             <Copy size={12} />
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Share</span>
+          </button>
+
+          <button
+            className="board-card-delete-btn glass"
+            style={{
+              padding: '0.35rem 0.55rem',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              background: 'rgba(18, 18, 24, 0.4)',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              color: 'var(--color-text-main)'
+            }}
+            onClick={handleExportJSON}
+            title="Download Board JSON Data (Excludes name & password)"
+          >
+            <Download size={12} color="var(--accent-cyan)" />
+            <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Export JSON</span>
           </button>
 
           {highlightedPathStartCardId && (

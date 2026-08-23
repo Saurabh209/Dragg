@@ -71,6 +71,7 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
     <CanvasBoard 
       boardId={boardId} 
       boardPassword={boardPassword}
+      forceViewOnly={forceViewOnly}
       onBack={onBack} 
       showToast={showToast} 
     />
