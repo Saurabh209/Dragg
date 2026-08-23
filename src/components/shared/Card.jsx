@@ -1,6 +1,33 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw, GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag, Lock, Unlock } from 'lucide-react';
+import {
+  Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw,
+  GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag,
+  Lock, Unlock, GitFork, Scale, Cloud, Server, Sun, Database, Zap, Package,
+  Layers, FastForward, Clock, Sliders, ExternalLink, Monitor, CloudUpload, MapPin
+} from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
+
+const SYSTEM_ICONS = {
+  start_here: MapPin,
+  sticky: FileText,
+  group: Box,
+  custom_node: Box,
+  frontend: Monitor,
+  ext_service: CloudUpload,
+  api_gateway: GitFork,
+  load_balancer: Scale,
+  cdn: Cloud,
+  api_server: Server,
+  worker: Sun,
+  database: Database,
+  cache: Zap,
+  blob_storage: Package,
+  queue: Layers,
+  stream: FastForward,
+  scheduler: Clock,
+  code_card: Code2
+};
 
 const COLORS = [
   { name: 'slate', value: 'var(--accent-slate)' },
@@ -98,7 +125,9 @@ function Card({
   showTextFormatBar = false,
   showBadgePicker = false,
   onCloseBadgePicker,
-  onToggleBadgePicker
+  onToggleBadgePicker,
+  onInspectSystemNode,
+  onOpenCodeStorage
 }) {
   const isViewOnly = isViewOnlyGlobal || card.isLocked || isParentGroupLocked || isDimmed;
   const features = card.features || {
@@ -212,312 +241,6 @@ function Card({
     return 'notes';
   };
   const activeMode = localCardMode || card.cardMode || getInitialActiveMode();
-
-  // Text Editor Selection & Formatting Helpers
-  const saveSelection = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
-        savedSelectionRef.current = range.cloneRange();
-      }
-    }
-  };
-
-  const restoreSelection = () => {
-    if (savedSelectionRef.current) {
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(savedSelectionRef.current);
-      editorRef.current?.focus();
-    }
-  };
-
-  const handleEditorInput = () => {
-    if (editorRef.current) {
-      onUpdate(card.id, { content: editorRef.current.innerHTML });
-    }
-  };
-
-  const cleanFragmentStyles = (fragment, styleName) => {
-    if (!fragment) return;
-    const elements = Array.from(fragment.querySelectorAll('*'));
-    elements.forEach((el) => {
-      if (el.style && el.style[styleName]) {
-        el.style[styleName] = '';
-        if (el.tagName === 'SPAN' && el.style.length === 0 && !el.className && !el.id) {
-          const parent = el.parentNode;
-          if (parent) {
-            while (el.firstChild) {
-              parent.insertBefore(el.firstChild, el);
-            }
-            parent.removeChild(el);
-          }
-        }
-      }
-    });
-  };
-
-  const applySpanStyle = (styleName, styleValue) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    if (range.collapsed) return;
-
-    if (editorRef.current && !editorRef.current.contains(range.commonAncestorContainer)) {
-      return;
-    }
-
-    const span = document.createElement('span');
-    span.style[styleName] = styleValue;
-
-    try {
-      const fragment = range.extractContents();
-      cleanFragmentStyles(fragment, styleName);
-      span.appendChild(fragment);
-      range.insertNode(span);
-    } catch (e) {
-      const selectedText = range.toString();
-      span.textContent = selectedText;
-      range.deleteContents();
-      range.insertNode(span);
-    }
-
-    // Post-normalization: Clean any empty spans inside the entire editor
-    if (editorRef.current) {
-      const emptySpans = Array.from(editorRef.current.querySelectorAll('span'));
-      emptySpans.forEach((el) => {
-        if (el.style.length === 0 && !el.className && !el.id) {
-          const parent = el.parentNode;
-          if (parent) {
-            while (el.firstChild) {
-              parent.insertBefore(el.firstChild, el);
-            }
-            parent.removeChild(el);
-          }
-        }
-      });
-    }
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNode(span);
-    selection.addRange(newRange);
-    saveSelection();
-
-    if (editorRef.current) {
-      onUpdate(card.id, { content: editorRef.current.innerHTML });
-    }
-  };
-
-  const handleBoldClick = (e) => {
-    e.preventDefault();
-    restoreSelection();
-    const selection = window.getSelection();
-    const hasSelection = selection && selection.toString().length > 0 && editorRef.current?.contains(selection.anchorNode);
-
-    if (hasSelection) {
-      document.execCommand('bold', false);
-      saveSelection();
-      if (editorRef.current) {
-        onUpdate(card.id, { content: editorRef.current.innerHTML });
-      }
-    } else {
-      onUpdate(card.id, { notesFontWeight: card.notesFontWeight === 'bold' ? 'normal' : 'bold' });
-    }
-  };
-
-  const handleItalicClick = (e) => {
-    e.preventDefault();
-    restoreSelection();
-    const selection = window.getSelection();
-    const hasSelection = selection && selection.toString().length > 0 && editorRef.current?.contains(selection.anchorNode);
-
-    if (hasSelection) {
-      document.execCommand('italic', false);
-      saveSelection();
-      if (editorRef.current) {
-        onUpdate(card.id, { content: editorRef.current.innerHTML });
-      }
-    } else {
-      onUpdate(card.id, { notesFontStyle: card.notesFontStyle === 'italic' ? 'normal' : 'italic' });
-    }
-  };
-
-  const handleUnderlineClick = (e) => {
-    e.preventDefault();
-    restoreSelection();
-    const selection = window.getSelection();
-    const hasSelection = selection && selection.toString().length > 0 && editorRef.current?.contains(selection.anchorNode);
-
-    if (hasSelection) {
-      document.execCommand('underline', false);
-      saveSelection();
-      if (editorRef.current) {
-        onUpdate(card.id, { content: editorRef.current.innerHTML });
-      }
-    } else {
-      onUpdate(card.id, { notesTextDecoration: card.notesTextDecoration === 'underline' ? 'none' : 'underline' });
-    }
-  };
-
-  const handleTextColorChange = (e) => {
-    const val = e.target.value;
-    restoreSelection();
-    const selection = window.getSelection();
-    const hasSelection = selection && selection.toString().length > 0 && editorRef.current?.contains(selection.anchorNode);
-
-    if (hasSelection) {
-      const colorMap = {
-        cyan: '#06b6d4',
-        emerald: '#10b981',
-        amber: '#f59e0b',
-        rose: '#f43f5e',
-        default: '#ffffff',
-      };
-      const actualColor = colorMap[val] || val;
-      document.execCommand('foreColor', false, actualColor);
-      saveSelection();
-      if (editorRef.current) {
-        onUpdate(card.id, { content: editorRef.current.innerHTML });
-      }
-    } else {
-      onUpdate(card.id, { notesTextColor: val });
-    }
-  };
-
-  const handleFontSizeChange = (e) => {
-    const val = e.target.value;
-    restoreSelection();
-    const selection = window.getSelection();
-    const hasSelection = selection && selection.toString().length > 0 && editorRef.current?.contains(selection.anchorNode);
-
-    if (hasSelection) {
-      const sizeMap = {
-        small: '12px',
-        medium: '14px',
-        large: '18px',
-        xl: '24px'
-      };
-      const finalSize = sizeMap[val] || val;
-      applySpanStyle('fontSize', finalSize);
-    } else {
-      onUpdate(card.id, { notesFontSize: val });
-    }
-  };
-
-  const handleFontFamilyChange = (e) => {
-    const val = e.target.value;
-    restoreSelection();
-    const selection = window.getSelection();
-    const hasSelection = selection && selection.toString().length > 0 && editorRef.current?.contains(selection.anchorNode);
-
-    if (hasSelection) {
-      const familyMap = {
-        sans: 'var(--font-body)',
-        serif: 'Georgia, serif',
-        mono: 'Courier New, Courier, monospace'
-      };
-      applySpanStyle('fontFamily', familyMap[val] || 'var(--font-body)');
-    } else {
-      onUpdate(card.id, { notesFontFamily: val });
-    }
-  };
-
-
-  const handleContainerBoxClick = (e) => {
-    e.preventDefault();
-    restoreSelection();
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    if (editorRef.current && !editorRef.current.contains(range.commonAncestorContainer)) {
-      return;
-    }
-
-    const box = document.createElement('div');
-    box.className = 'notes-callout-box';
-    box.style.display = 'block';
-
-    // Add delete button element inside the callout box
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'notes-callout-delete';
-    deleteBtn.contentEditable = 'false';
-    deleteBtn.innerText = '×';
-    deleteBtn.title = 'Delete container';
-    box.appendChild(deleteBtn);
-
-    try {
-      if (range.collapsed) {
-        const textNode = document.createTextNode('Type inside container...');
-        box.appendChild(textNode);
-      } else {
-        box.appendChild(range.extractContents());
-      }
-      range.insertNode(box);
-
-      selection.removeAllRanges();
-      const newRange = document.createRange();
-      newRange.selectNodeContents(box);
-      // Place cursor in the text area of the box, skipping the close button
-      if (box.childNodes.length > 1) {
-        newRange.setStart(box, 1);
-        newRange.setEnd(box, box.childNodes.length);
-      }
-      selection.addRange(newRange);
-      saveSelection();
-
-      if (editorRef.current) {
-        onUpdate(card.id, { content: editorRef.current.innerHTML });
-      }
-    } catch (err) {
-      console.error('Failed to insert container box:', err);
-    }
-  };
-
-  const ensureCalloutDeleteButtons = () => {
-    if (!editorRef.current) return;
-    const callouts = editorRef.current.querySelectorAll('.notes-callout-box');
-    let modified = false;
-    callouts.forEach(box => {
-      if (!box.querySelector('.notes-callout-delete')) {
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'notes-callout-delete';
-        deleteBtn.contentEditable = 'false';
-        deleteBtn.innerText = '×';
-        deleteBtn.title = 'Delete container';
-        box.insertBefore(deleteBtn, box.firstChild);
-        modified = true;
-      }
-    });
-    if (modified && editorRef.current) {
-      onUpdate(card.id, { content: editorRef.current.innerHTML });
-    }
-  };
-
-  // Sync editor content when it changes outside of this focus context
-  useEffect(() => {
-    if (editorRef.current && activeMode === 'notes') {
-      const isFocused = document.activeElement === editorRef.current;
-      const isFormatBarInteracting = document.activeElement?.closest('.notes-format-bar') ||
-        document.activeElement?.closest('.notes-floating-format-bar') ||
-        false;
-
-      if (!isFocused && !isFormatBarInteracting && editorRef.current.innerHTML !== (card.content || '')) {
-        editorRef.current.innerHTML = card.content || '';
-        ensureCalloutDeleteButtons();
-      }
-    }
-  }, [card.content, activeMode]);
-
-  // Ensure callout delete buttons are present on mount or mode changes
-  useEffect(() => {
-    if (editorRef.current && activeMode === 'notes') {
-      ensureCalloutDeleteButtons();
-    }
-  }, [activeMode]);
 
   // Redraw card sketch whenever card size, drawingUrl, or mode changes
   useEffect(() => {
@@ -892,15 +615,17 @@ function Card({
   const handleAddTag = (e) => {
     e.preventDefault();
     const cleanTag = newTag.trim();
-    if (cleanTag && !card.tags.includes(cleanTag)) {
-      onUpdate(card.id, { tags: [...card.tags, cleanTag] });
+    const currentTags = card.tags || [];
+    if (cleanTag && !currentTags.includes(cleanTag)) {
+      onUpdate(card.id, { tags: [...currentTags, cleanTag] });
     }
     setNewTag('');
     setIsEditingTag(false);
   };
 
   const handleRemoveTag = (tagToRemove) => {
-    onUpdate(card.id, { tags: card.tags.filter((t) => t !== tagToRemove) });
+    const currentTags = card.tags || [];
+    onUpdate(card.id, { tags: currentTags.filter((t) => t !== tagToRemove) });
   };
 
   // Attachment Management
@@ -934,7 +659,18 @@ function Card({
     onUpdate(card.id, { attachments: updatedAttachments });
   };
 
-  const currentBadge = card.badge || (card.isStartNode ? { text: 'Entry Point', color: '#881337' } : null);
+  const currentBadge = (() => {
+    if (typeof card.badge === 'string' && card.badge.trim().length > 0) {
+      return { text: card.badge.trim(), color: 'var(--accent-rose)' };
+    }
+    if (card.badge && typeof card.badge.text === 'string' && card.badge.text.trim().length > 0) {
+      return card.badge;
+    }
+    if (card.isStartNode) {
+      return { text: 'Entry Point', color: '#881337' };
+    }
+    return null;
+  })();
 
   // If card has a badge tag, the tag color overrides default card theme/color!
   const effectiveColor = (currentBadge && currentBadge.color) ? currentBadge.color : card.color;
@@ -1245,7 +981,170 @@ function Card({
         document.body
       )}
       <div className="card-content-container">
-        {/* Card Header */}
+        {card.type === 'system_node' ? (
+          <div
+            className="system-node-card-body"
+            style={{
+              padding: '12px 14px',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              background: '#ffffff',
+              // borderRadius: '16px',
+              // border: '1.5px solid #e2e8f0',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+              color: '#0f172a',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: `${card.color || '#10b981'}18`,
+                    color: card.color || '#10b981',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: `1px solid ${card.color || '#10b981'}30`,
+                    flexShrink: 0
+                  }}
+                >
+                  {React.createElement(SYSTEM_ICONS[card.nodeType] || Server, { size: 20 })}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', lineHeight: '1.2' }}>
+                    {card.title || 'System Component'}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                    {card.description || 'System component'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="card-drag-handle" title="Drag node to move">
+                <GripHorizontal size={14} color="#94a3b8" />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
+              <span
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  background: card.isConfigured ? '#ecfdf5' : '#f1f5f9',
+                  color: card.isConfigured ? '#047857' : '#64748b',
+                  border: card.isConfigured ? '1px solid #a7f3d0' : '1px solid #e2e8f0'
+                }}
+              >
+                {card.isConfigured ? 'Configured' : 'Unconfigured'}
+              </span>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onInspectSystemNode) onInspectSystemNode(card);
+                }}
+                style={{
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Sliders size={12} /> Configure
+              </button>
+            </div>
+          </div>
+        ) : card.type === 'code_storage' ? (
+          <div
+            className="code-storage-card-body"
+            style={{
+              padding: '12px',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              background: '#0f172a',
+              borderRadius: '14px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              color: '#f8fafc',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Code2 size={16} color="#6366f1" />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>
+                  {card.title || 'Code Snippet'}
+                </span>
+              </div>
+              <div className="card-drag-handle">
+                <GripHorizontal size={14} color="#64748b" />
+              </div>
+            </div>
+
+            <div
+              style={{
+                fontSize: '0.72rem',
+                fontFamily: 'monospace',
+                color: '#38bdf8',
+                background: '#090d16',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                margin: '6px 0',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {card.code ? card.code.split('\n')[0] : '// Empty snippet'}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                {(card.code || '').split('\n').length} lines
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenCodeStorage) onOpenCodeStorage(card);
+                }}
+                style={{
+                  background: '#6366f1',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <ExternalLink size={10} /> Open Storage
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Card Header */}
         <div className="card-header" style={isHeadingCard ? { display: 'flex', position: 'relative', width: '100%', height: '100%', padding: '0.4rem 0.5rem', borderBottom: 'none', background: 'transparent' } : {}}>
           {isHeadingCard ? (
             <>
@@ -1390,199 +1289,21 @@ function Card({
             <div className="card-body">
               {activeMode === 'notes' && features.notes && (
                 <>
-                  {/* Notes Customization Format Bar */}
-                  <div className="notes-format-bar" onClick={(e) => e.stopPropagation()} style={{ display: (!isViewOnly && isSelected && showTextFormatBar) ? 'flex' : 'none' }}>
-                    {/* Font Family Select */}
-                    <select
-                      className="format-select font-family-select"
-                      value={card.notesFontFamily || 'sans'}
-                      onChange={handleFontFamilyChange}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                      title="Font Family"
-                    >
-                      <option value="sans">Sans-Serif</option>
-                      <option value="serif">Serif</option>
-                      <option value="mono">Monospace</option>
-                    </select>
-
-                    {/* Font Size Select */}
-                    <select
-                      className="format-select font-size-select"
-                      value={card.notesFontSize || '14px'}
-                      onChange={handleFontSizeChange}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                      title="Font Size"
-                    >
-                      <option value="12px">12px</option>
-                      <option value="13px">13px</option>
-                      <option value="14px">14px</option>
-                      <option value="15px">15px</option>
-                      <option value="16px">16px</option>
-                      <option value="18px">18px</option>
-                      <option value="20px">20px</option>
-                      <option value="22px">22px</option>
-                      <option value="24px">24px</option>
-                      <option value="28px">28px</option>
-                      <option value="32px">32px</option>
-                    </select>
-
-                    {/* Text Color Select */}
-                    <select
-                      className="format-select text-color-select"
-                      value={card.notesTextColor || 'default'}
-                      onChange={handleTextColorChange}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                      title="Text Color"
-                      style={{
-                        color: card.notesTextColor === 'emerald' ? 'var(--accent-emerald)' :
-                          card.notesTextColor === 'cyan' ? 'var(--accent-cyan)' :
-                            card.notesTextColor === 'amber' ? 'var(--accent-amber)' :
-                              card.notesTextColor === 'rose' ? 'var(--accent-rose)' : 'white'
-                      }}
-                    >
-                      <option value="default" style={{ color: 'white' }}>White</option>
-                      <option value="cyan" style={{ color: 'var(--accent-cyan)' }}>Cyan</option>
-                      <option value="emerald" style={{ color: 'var(--accent-emerald)' }}>Emerald</option>
-                      <option value="amber" style={{ color: 'var(--accent-amber)' }}>Amber</option>
-                      <option value="rose" style={{ color: 'var(--accent-rose)' }}>Rose</option>
-                    </select>
-
-                    <div className="format-divider" />
-
-                    {/* Bold Toggle Button */}
-                    <button
-                      type="button"
-                      className={`format-btn bold-btn ${card.notesFontWeight === 'bold' ? 'active' : ''}`}
-                      onClick={handleBoldClick}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                      }}
-                      title="Bold"
-                      style={{ fontWeight: 'bold' }}
-                    >
-                      B
-                    </button>
-
-                    {/* Italic Toggle Button */}
-                    <button
-                      type="button"
-                      className={`format-btn italic-btn ${card.notesFontStyle === 'italic' ? 'active' : ''}`}
-                      onClick={handleItalicClick}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                      }}
-                      title="Italic"
-                      style={{ fontStyle: 'italic' }}
-                    >
-                      I
-                    </button>
-
-                    {/* Underline Toggle Button */}
-                    <button
-                      type="button"
-                      className={`format-btn underline-btn ${card.notesTextDecoration === 'underline' ? 'active' : ''}`}
-                      onClick={handleUnderlineClick}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                      }}
-                      title="Underline"
-                      style={{ textDecoration: 'underline' }}
-                    >
-                      U
-                    </button>
-
-                    {/* Container Card Button */}
-                    <button
-                      type="button"
-                      className="format-btn container-btn"
-                      onClick={handleContainerBoxClick}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                      }}
-                      title="Wrap text in styled container card"
-                    >
-                      <Box size={11} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                    </button>
-                  </div>
-
-                  <div
-                    ref={editorRef}
-                    contentEditable={!isViewOnly}
-                    suppressContentEditableWarning
-                    className="card-content-textarea"
-                    style={{
-                      ...notesStyle,
-                      overflowY: 'auto',
-                      cursor: 'text',
-                      userSelect: 'text',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}
-                    onInput={handleEditorInput}
-                    onBlur={handleEditorInput}
-                    onMouseUp={saveSelection}
-                    onKeyUp={saveSelection}
-                    placeholder="Write notes and concepts..."
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect(card.id);
-                      if (isViewOnly) return;
-                      if (e.target.classList.contains('notes-callout-delete')) {
-                        e.preventDefault();
-                        const calloutBox = e.target.closest('.notes-callout-box');
-                        if (calloutBox) {
-                          calloutBox.remove();
-                          handleEditorInput();
-                        }
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
-                      if (isViewOnly) return;
-                      // Handle Backspace when inside an empty callout box
-                      if (e.key === 'Backspace') {
-                        const selection = window.getSelection();
-                        if (selection && selection.rangeCount > 0) {
-                          const range = selection.getRangeAt(0);
-                          const callout = range.commonAncestorContainer.nodeType === 1
-                            ? range.commonAncestorContainer.closest('.notes-callout-box')
-                            : range.commonAncestorContainer.parentElement?.closest('.notes-callout-box');
-
-                          if (callout) {
-                            const text = callout.textContent.replace('×', '').trim();
-                            if (text === '') {
-                              e.preventDefault();
-                              const parent = callout.parentNode;
-                              const textNode = document.createTextNode('');
-                              parent.insertBefore(textNode, callout);
-                              callout.remove();
-
-                              const newRange = document.createRange();
-                              newRange.setStart(textNode, 0);
-                              newRange.collapse(true);
-                              selection.removeAllRanges();
-                              selection.addRange(newRange);
-
-                              handleEditorInput();
-                            }
-                          }
-                        }
-                      }
-                    }}
+                  {/* Rich Text Editor via TipTap */}
+                  <RichTextEditor
+                    content={card.content || ''}
+                    onUpdate={(newHtml) => onUpdate(card.id, { content: newHtml })}
+                    isViewOnly={isViewOnly}
+                    notesStyle={notesStyle}
+                    showTextFormatBar={showTextFormatBar}
                   />
                 </>
               )}
 
-              {/* Tags Area */}
+              {/* Tags Area - Rendered whenever features.tags is enabled on the card */}
               {((activeMode === 'notes' && features.notes) || (!features.notes && features.tags)) && features.tags && (
-                <div className="card-tags-area">
-                  {card.tags.map((tag) => (
+                <div className="card-tags-area" style={{ padding: '6px 12px 10px', marginTop: 'auto' }}>
+                  {(card.tags || []).map((tag) => (
                     <span key={tag} className="tag-badge">
                       {tag}
                       {!isViewOnly && (
@@ -1658,7 +1379,7 @@ function Card({
                           <div key={idx} className="card-attachment-item">
                             <div className="attachment-item-info">
                               <span className="attachment-icon">
-                                {isImg && <Image size={11} color="var(--accent-cyan)" />}
+                                {isImg && <ImageIcon size={11} color="var(--accent-cyan)" />}
                                 {isMd && <FileText size={11} color="var(--accent-amber)" />}
                                 {isPdf && <FileText size={11} color="var(--accent-rose)" />}
                                 {!isImg && !isMd && !isPdf && <Paperclip size={11} color="var(--color-text-muted)" />}
@@ -1759,6 +1480,8 @@ function Card({
               )}
             </div>
           )
+        )}
+        </>
         )}
       </div>
 

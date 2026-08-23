@@ -30,10 +30,12 @@ import {
   CornerDownRight,
   ChevronsRight,
   Minus,
-  GitCommit
+  GitCommit,
+  Server
 } from 'lucide-react';
 
 function LeftVerticalToolbar({
+  onOpenSystemCatalog,
   onAddCardDirect,
   onAddCardCustom,
   gridType = 'dots',
@@ -106,13 +108,20 @@ function LeftVerticalToolbar({
 
   useEffect(() => {
     if (!dragState) {
-      const pos = toolbarSettings.position || { x: 20, y: 200 };
-      const orient = toolbarSettings.orientation || 'vertical';
-      setLocalPos(pos);
-      setLocalOrientation(orient);
+      const pos = toolbarSettings?.position || { x: 20, y: 200 };
+      const orient = toolbarSettings?.orientation || 'vertical';
+
+      setLocalPos((prev) => {
+        if (prev && prev.x === pos.x && prev.y === pos.y) return prev;
+        return pos;
+      });
+      setLocalOrientation((prev) => {
+        if (prev === orient) return prev;
+        return orient;
+      });
       latestPosRef.current = { position: pos, orientation: orient };
     }
-  }, [toolbarSettings, dragState]);
+  }, [toolbarSettings?.position?.x, toolbarSettings?.position?.y, toolbarSettings?.orientation, dragState]);
 
   const toolbarRef = useRef(null);
 
@@ -253,6 +262,23 @@ function LeftVerticalToolbar({
 
       <div className={`vertical-toolbar-divider ${isHorizontal ? 'horizontal' : ''}`} />
 
+      {/* SYSTEM DESIGN NODES TOOL */}
+      {onOpenSystemCatalog && (
+        <div style={{ position: 'relative' }}>
+          <button
+            className="vertical-toolbar-btn"
+            onClick={() => {
+              if (onOpenSystemCatalog) onOpenSystemCatalog();
+              setActiveMenu(null);
+            }}
+            title="System Architecture Nodes (⌘K)"
+            style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+          >
+            <Server size={18} style={{ color: '#10b981' }} />
+          </button>
+        </div>
+      )}
+
       {/* 3. ADD NODE / CARDS */}
       <div style={{ position: 'relative' }}>
         <button
@@ -266,6 +292,18 @@ function LeftVerticalToolbar({
         {activeMenu === 'node' && (
           <div className={`toolbar-submenu ${isHorizontal ? 'horizontal' : ''} ${isMenuLeft ? 'left-aligned-menu' : ''}`}>
             <div className="submenu-title">Create Node</div>
+            {onOpenSystemCatalog && (
+              <button
+                className="submenu-btn"
+                onClick={() => {
+                  if (onOpenSystemCatalog) onOpenSystemCatalog();
+                  setActiveMenu(null);
+                }}
+                style={{ fontWeight: 600, color: '#10b981' }}
+              >
+                🖥️ System Architecture Node...
+              </button>
+            )}
             <button
               className="submenu-btn"
               onClick={() => {
@@ -743,88 +781,47 @@ function LeftVerticalToolbar({
 
                 {activeSettingsSubmenu === 'background' && (
                   <>
-                    <div className="submenu-title">Background</div>
-                    <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '8px', marginBottom: '4px' }}>
-                      <button
-                        type="button"
-                        className={`submenu-btn ${bgTab === 'static' ? 'active' : ''}`}
-                        onClick={() => setBgTab('static')}
-                        style={{ flex: 1, padding: '0.25rem 0', justifyContent: 'center', fontSize: '0.68rem', borderRadius: '6px' }}
-                      >
-                        🎨 Static
-                      </button>
-                      <button
-                        type="button"
-                        className={`submenu-btn ${bgTab === 'live' ? 'active' : ''}`}
-                        onClick={() => setBgTab('live')}
-                        style={{ flex: 1, padding: '0.25rem 0', justifyContent: 'center', fontSize: '0.68rem', borderRadius: '6px' }}
-                      >
-                        ⚡ Live Bg
-                      </button>
-                    </div>
-
-                    {bgTab === 'static' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', padding: '0.2rem 0' }}>
-                        {[
-                          { name: 'Dark Pitch', hex: '#0a0a0c' },
-                          { name: 'Deep Slate', hex: '#111827' },
-                          { name: 'Midnight Navy', hex: '#0f172a' },
-                          { name: 'Deep Emerald', hex: '#062e24' },
-                          { name: 'Deep Purple', hex: '#1e1b4b' },
-                          { name: 'Blueprint Blue', hex: '#0b172a' }
-                        ].map((bg) => (
-                          <button
-                            key={bg.name}
-                            onClick={() => onChangeBoardBgColor(bg.hex)}
-                            style={{
-                              width: '18px',
-                              height: '18px',
-                              borderRadius: '50%',
-                              backgroundColor: bg.hex,
-                              border: boardBgColor === bg.hex ? '2px solid #a5b4fc' : '1px solid rgba(255,255,255,0.2)',
-                              boxShadow: boardBgColor === bg.hex ? '0 0 6px rgba(99,102,241,0.6)' : 'none',
-                              cursor: 'pointer',
-                              padding: 0
-                            }}
-                            title={bg.name}
-                          />
-                        ))}
-                        <input
-                          type="color"
-                          value={boardBgColor || '#0a0a0c'}
-                          onChange={(e) => onChangeBoardBgColor(e.target.value)}
+                    <div className="submenu-title">Background Color</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', padding: '0.4rem 0' }}>
+                      {[
+                        { name: 'Dark Pitch', hex: '#0a0a0c' },
+                        { name: 'Deep Slate', hex: '#111827' },
+                        { name: 'Midnight Navy', hex: '#0f172a' },
+                        { name: 'Deep Emerald', hex: '#062e24' },
+                        { name: 'Deep Purple', hex: '#1e1b4b' },
+                        { name: 'Blueprint Blue', hex: '#0b172a' }
+                      ].map((bg) => (
+                        <button
+                          key={bg.name}
+                          onClick={() => onChangeBoardBgColor(bg.hex)}
                           style={{
                             width: '20px',
                             height: '20px',
-                            padding: 0,
-                            border: 'none',
-                            background: 'none',
-                            cursor: 'pointer'
+                            borderRadius: '50%',
+                            backgroundColor: bg.hex,
+                            border: boardBgColor === bg.hex ? '2px solid #a5b4fc' : '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: boardBgColor === bg.hex ? '0 0 6px rgba(99,102,241,0.6)' : 'none',
+                            cursor: 'pointer',
+                            padding: 0
                           }}
-                          title="Pick custom static background"
+                          title={bg.name}
                         />
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        {[
-                          { id: 'interactive-particles', label: '🧲 Particles' },
-                          { id: 'constellation', label: '🕸️ Constellation' },
-                          { id: 'floating-stardust', label: '✨ Stardust' },
-                          { id: 'matrix-rain', label: '💻 Matrix Rain' },
-                          { id: 'none', label: '🚫 Static Off' }
-                        ].map((liveOpt) => (
-                          <button
-                            key={liveOpt.id}
-                            className={`submenu-btn ${liveBgStyle === liveOpt.id ? 'active' : ''}`}
-                            onClick={() => onChangeLiveBgStyle(liveOpt.id)}
-                            style={{ padding: '0.35rem 0.5rem' }}
-                          >
-                            <span>{liveOpt.label}</span>
-                            {liveBgStyle === liveOpt.id && <Check size={12} />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                      ))}
+                      <input
+                        type="color"
+                        value={boardBgColor || '#0a0a0c'}
+                        onChange={(e) => onChangeBoardBgColor(e.target.value)}
+                        style={{
+                          width: '22px',
+                          height: '22px',
+                          padding: 0,
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer'
+                        }}
+                        title="Pick custom static background"
+                      />
+                    </div>
                   </>
                 )}
 

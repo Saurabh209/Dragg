@@ -25,43 +25,30 @@ export default function DevTool() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [activeTab, setActiveTab] = useState('features'); // 'features', 'hidden', 'stats'
+  const [activeTab, setActiveTab] = useState('features');
 
-  // Features State
   const [outlineEnabled, setOutlineEnabled] = useState(false);
   const [outlineColor, setOutlineColor] = useState('rgba(56, 189, 248, 0.6)');
   const [hoverInspectorEnabled, setHoverInspectorEnabled] = useState(false);
-  const [rightClickDeleteEnabled, setRightClickDeleteEnabled] = useState(true);
+  const [rightClickDeleteEnabled, setRightClickDeleteEnabled] = useState(false);
 
-  // Magnifying Lens State
   const [lensEnabled, setLensEnabled] = useState(false);
   const [lensZoom, setLensZoom] = useState(2.5);
   const lensElementRef = useRef(null);
   const lensViewportRef = useRef(null);
   const lastLensTargetRef = useRef(null);
 
-  // Hover Inspector State
   const [hoverInfo, setHoverInfo] = useState(null);
   const [hoverBounds, setHoverBounds] = useState(null);
 
-  // Hidden/Deleted Elements Stack
   const [deletedElements, setDeletedElements] = useState([]);
-
-  // Custom Context Menu State
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, target }
-
-  // DOM Stats State
+  const [contextMenu, setContextMenu] = useState(null);
   const [domStats, setDomStats] = useState({ nodes: 0, images: 0, buttons: 0, inputs: 0, viewport: '' });
-
-  // Copy Feedback Toast state
   const [copiedText, setCopiedText] = useState('');
-
-  // Floating DevTool position state
   const [position, setPosition] = useState({ x: null, y: null });
   const isDraggingRef = useRef(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
 
-  // 1. Listen for Shortcut Ctrl + Shift + D
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
@@ -74,7 +61,6 @@ export default function DevTool() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // 2. Handle Force Outline Overlay Injection
   useEffect(() => {
     const styleId = 'dev-tool-outline-style';
     let styleTag = document.getElementById(styleId);
@@ -101,7 +87,6 @@ export default function DevTool() {
     };
   }, [outlineEnabled, outlineColor]);
 
-  // Cleanup outline style on unmount
   useEffect(() => {
     return () => {
       const tag = document.getElementById('dev-tool-outline-style');
@@ -109,7 +94,6 @@ export default function DevTool() {
     };
   }, []);
 
-  // Auto-disable all dev tools & features when DevTool panel is closed
   useEffect(() => {
     if (!isOpen) {
       setOutlineEnabled(false);
@@ -125,7 +109,6 @@ export default function DevTool() {
     }
   }, [isOpen]);
 
-  // Hide default cursor on page when Lens Mode is active
   useEffect(() => {
     const styleId = 'dev-tool-lens-cursor-style';
     let styleTag = document.getElementById(styleId);
@@ -151,7 +134,6 @@ export default function DevTool() {
     };
   }, [lensEnabled, isOpen]);
 
-  // 3. Hover Inspector & Magnifying Lens Live Tracker
   const activeTargetRef = useRef(null);
   const mousePosRef = useRef({ x: 0, y: 0 });
 
@@ -192,7 +174,6 @@ export default function DevTool() {
       if (target && document.body.contains(target)) {
         const rect = target.getBoundingClientRect();
 
-        // 1. Update Hover Inspector if active
         if (hoverInspectorEnabled) {
           const computed = window.getComputedStyle(target);
 
@@ -254,7 +235,6 @@ export default function DevTool() {
           setHoverBounds(null);
         }
 
-        // 2. Update Magnifying Lens if active (Direct DOM manipulation for 60fps zero flicker)
         if (lensEnabled && lensElementRef.current && lensViewportRef.current) {
           const lensEl = lensElementRef.current;
           const viewportEl = lensViewportRef.current;
@@ -263,7 +243,6 @@ export default function DevTool() {
           lensEl.style.left = `${mousePosRef.current.x - 80}px`;
           lensEl.style.top = `${mousePosRef.current.y - 80}px`;
 
-          // Re-clone target ONLY when target changes to a new DOM element
           if (lastLensTargetRef.current !== target) {
             lastLensTargetRef.current = target;
             viewportEl.innerHTML = '';
@@ -272,7 +251,6 @@ export default function DevTool() {
             clone.style.margin = '0';
             clone.style.pointerEvents = 'none';
 
-            // Copy canvas pixel buffer if target is or contains <canvas> elements
             const origCanvases = target.tagName === 'CANVAS' ? [target] : target.querySelectorAll('canvas');
             const cloneCanvases = clone.tagName === 'CANVAS' ? [clone] : clone.querySelectorAll('canvas');
             origCanvases.forEach((orig, idx) => {
@@ -288,7 +266,6 @@ export default function DevTool() {
             viewportEl.appendChild(clone);
           }
 
-          // Smoothly translate viewport without re-cloning
           const offsetX = mousePosRef.current.x - rect.left;
           const offsetY = mousePosRef.current.y - rect.top;
 
@@ -329,7 +306,6 @@ export default function DevTool() {
     };
   }, [hoverInspectorEnabled, lensEnabled, lensZoom]);
 
-  // 4. Right-Click Context Menu (Delete from DOM Temporarily)
   useEffect(() => {
     if (!rightClickDeleteEnabled || !isOpen) {
       setContextMenu(null);
@@ -340,7 +316,6 @@ export default function DevTool() {
       const target = e.target;
       if (!target) return;
 
-      // Ignore clicks inside DevTool UI
       if (target.closest('#dev-tool-root') || target.closest('.dev-tool-context-menu')) {
         return;
       }
@@ -360,7 +335,6 @@ export default function DevTool() {
       }
     };
 
-    // Use capture: true so DevTool intercepts right click before child handlers stopPropagation
     window.addEventListener('contextmenu', handleContextMenu, true);
     window.addEventListener('click', handleClickOutside, true);
     return () => {
@@ -369,7 +343,6 @@ export default function DevTool() {
     };
   }, [rightClickDeleteEnabled, isOpen, contextMenu]);
 
-  // 5. Calculate DOM Statistics
   const refreshDomStats = () => {
     const nodes = document.getElementsByTagName('*').length;
     const images = document.getElementsByTagName('img').length;
@@ -387,7 +360,6 @@ export default function DevTool() {
     }
   }, [isOpen, activeTab]);
 
-  // Actions: Temporary Delete from DOM
   const handleDeleteElement = (target) => {
     if (!target) return;
 
@@ -412,7 +384,6 @@ export default function DevTool() {
     setContextMenu(null);
   };
 
-  // Action: Restore Single Element
   const handleRestoreElement = (id) => {
     setDeletedElements((prev) => {
       const item = prev.find((el) => el.id === id);
@@ -427,7 +398,6 @@ export default function DevTool() {
     });
   };
 
-  // Action: Restore All Elements
   const handleRestoreAll = () => {
     deletedElements.forEach((item) => {
       if (item.element) {
@@ -441,7 +411,6 @@ export default function DevTool() {
     setDeletedElements([]);
   };
 
-  // Copy helper
   const handleCopy = (text, label) => {
     navigator.clipboard.writeText(text);
     setCopiedText(label);
@@ -449,7 +418,6 @@ export default function DevTool() {
     setContextMenu(null);
   };
 
-  // Draggable Header logic
   const handleMouseDownHeader = (e) => {
     if (e.target.closest('.dev-tool-actions')) return;
     isDraggingRef.current = true;
@@ -482,7 +450,6 @@ export default function DevTool() {
 
   return (
     <div id="dev-tool-root">
-      {/* Trigger Button when DevTool is closed */}
       {!isOpen && (
         <button 
           className="dev-tool-trigger"
@@ -495,7 +462,6 @@ export default function DevTool() {
         </button>
       )}
 
-      {/* Hover Inspector Overlay Box & Floating Card */}
       {hoverInspectorEnabled && hoverBounds && (
         <div 
           className="dev-tool-hover-overlay"
@@ -551,7 +517,6 @@ export default function DevTool() {
         </div>
       )}
 
-      {/* Magnifying Lens Overlay */}
       {lensEnabled && (
         <div 
           className="dev-tool-lens"
@@ -567,7 +532,6 @@ export default function DevTool() {
         </div>
       )}
 
-      {/* Custom Context Menu */}
       {contextMenu && (
         <div 
           className="dev-tool-context-menu"
@@ -608,13 +572,11 @@ export default function DevTool() {
         </div>
       )}
 
-      {/* Main DevTool Floating Bar */}
       {isOpen && (
         <div 
           className={`dev-tool-bar ${isMinimized ? 'minimized' : ''}`}
           style={position.x !== null ? { left: `${position.x}px`, top: `${position.y}px`, bottom: 'auto', right: 'auto' } : {}}
         >
-          {/* Header */}
           <div className="dev-tool-header" onMouseDown={handleMouseDownHeader}>
             <div className="dev-tool-title-group">
               <Wrench size={15} style={{ color: '#38bdf8' }} />
@@ -642,7 +604,6 @@ export default function DevTool() {
 
           {!isMinimized && (
             <>
-              {/* Navigation Tabs */}
               <div className="dev-tool-tabs">
                 <button 
                   className={`dev-tool-tab ${activeTab === 'features' ? 'active' : ''}`}
@@ -670,13 +631,11 @@ export default function DevTool() {
                 </button>
               </div>
 
-              {/* Body */}
               <div className="dev-tool-body">
                 {activeTab === 'features' && (
                   <div className="dev-tool-section">
                     <div className="dev-tool-section-title">Layout & Inspection Tools</div>
 
-                    {/* Force Outline Checkbox */}
                     <div className="dev-tool-option">
                       <label className="dev-tool-option-label">
                         <input 
@@ -705,7 +664,6 @@ export default function DevTool() {
                       )}
                     </div>
 
-                    {/* Hover Inspector Checkbox */}
                     <div className="dev-tool-option">
                       <label className="dev-tool-option-label">
                         <input 
@@ -721,7 +679,6 @@ export default function DevTool() {
                       </label>
                     </div>
 
-                    {/* Magnifying Lens Checkbox */}
                     <div className="dev-tool-option">
                       <label className="dev-tool-option-label">
                         <input 
@@ -751,7 +708,6 @@ export default function DevTool() {
                       )}
                     </div>
 
-                    {/* Right Click Context Menu Checkbox */}
                     <div className="dev-tool-option">
                       <label className="dev-tool-option-label">
                         <input 
@@ -840,7 +796,6 @@ export default function DevTool() {
                 )}
               </div>
 
-              {/* Footer */}
               <div className="dev-tool-footer">
                 <span>Press <kbd style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px', color: '#cbd5e1' }}>Ctrl + Shift + D</kbd> to toggle</span>
                 {copiedText && (

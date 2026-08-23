@@ -1,7 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
-import CanvasBoard from './components/CanvasBoard';
-import DevTool from './components/DevTool';
+import CanvasBoard from './components/shared/CanvasBoard';
+import FreestyleCanvas from './components/freestyle/FreestyleCanvas';
+import SystemDesignCanvas from './components/system_design/SystemDesignCanvas';
+import DevTool from './components/shared/DevTool';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showToast }) {
+  const [boardPreset, setBoardPreset] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (boardId.startsWith('sd_')) {
+      setBoardPreset('system_design');
+      setIsLoading(false);
+      return;
+    }
+    if (boardId.startsWith('fs_')) {
+      setBoardPreset('freestyle');
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    fetch(`${API_BASE}/system-design-boards/${boardId}`)
+      .then((res) => {
+        if (!res.ok) return fetch(`${API_BASE}/boards/${boardId}`);
+        return res;
+      })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.preset === 'system_design') {
+          setBoardPreset('system_design');
+        } else {
+          setBoardPreset(data.preset || 'freestyle');
+        }
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setBoardPreset('freestyle');
+        setIsLoading(false);
+      });
+  }, [boardId]);
+
+  if (isLoading) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', background: '#0a0a0c', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f8fafc', fontFamily: 'sans-serif' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Loading Board...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (boardPreset === 'system_design') {
+    if (!import.meta.env.DEV) {
+      showToast("You don't have access to development feature", 'error');
+      onBack();
+      return null;
+    }
+    return <SystemDesignCanvas boardId={boardId} onBack={onBack} showToast={showToast} />;
+  }
+
+  return (
+    <CanvasBoard 
+      boardId={boardId} 
+      boardPassword={boardPassword}
+      onBack={onBack} 
+      showToast={showToast} 
+    />
+  );
+}
 import { Maximize2, Minimize2 } from 'lucide-react';
 
 function App() {
@@ -128,10 +199,9 @@ function App() {
           showToast={showToast} 
         />
       ) : (
-        <CanvasBoard 
+        <BoardDispatcher 
           boardId={currentBoardId} 
           boardPassword={boardPassword}
-          onUpdatePassword={setBoardPassword}
           forceViewOnly={forceViewOnly}
           onBack={() => {
             window.location.hash = '';

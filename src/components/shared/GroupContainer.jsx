@@ -24,7 +24,6 @@ function GroupContainer({
   const handleMouseDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     
-    // Don't drag if clicking buttons or input fields
     if (
       e.target.tagName === 'INPUT' || 
       e.target.closest('button') || 
@@ -151,7 +150,6 @@ function GroupContainer({
       </div>
       <div className="group-body-frame" />
       
-      {/* SE Resize handle */}
       {!isLocked && (
         <div
           className="resize-handle-se"

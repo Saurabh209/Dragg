@@ -572,6 +572,7 @@ h6 {
   transition: box-shadow 0.2s, border-color 0.2s;
   display: flex;
   flex-direction: column;
+  cursor: default;
 }
 
 .card-wrapper.selected {
@@ -845,7 +846,7 @@ h6 {
 
 /* Card Content Area */
 .card-body {
-  padding: 0.8rem;
+  padding: 0;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -866,6 +867,11 @@ h6 {
   height: 100%;
   flex-grow: 1;
   pointer-events: auto;
+  cursor: text;
+}
+
+.ProseMirror {
+  cursor: text;
 }
 
 /* Contenteditable placeholder style */
@@ -2123,8 +2129,8 @@ h6 {
   background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 6px 6px 0 0;
-  margin-top: -0.4rem;
-  margin-left: -0.6rem;
+  /* margin-top: -0.4rem;
+  margin-left: -0.6rem; */
   margin-right: -0.6rem;
   margin-bottom: 0.5rem;
   animation: slideDownFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -2159,6 +2165,7 @@ h6 {
   background: rgba(255, 255, 255, 0.12);
   margin: 0 0.15rem;
 }
+
 
 .format-btn {
   background: transparent;
@@ -3235,4 +3242,347 @@ h6 {
 .card-wrapper:hover .card-lock-indicator {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* ==========================================
+   TipTap Rich Text Editor & Bullet Points Styling
+   ========================================== */
+
+.tiptap-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.tiptap-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0.35rem 0.35rem 0.35rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  z-index: 10;
+  border-radius: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(6, 182, 212, 0.4) rgba(255, 255, 255, 0.03);
+}
+
+.tiptap-toolbar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tiptap-toolbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+}
+
+.tiptap-toolbar::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.45);
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.4);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tiptap-toolbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan, #06b6d4);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.8);
+}
+
+.tiptap-toolbar .format-divider {
+  width: 1px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 0.12rem;
+}
+
+.tiptap-toolbar .format-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  padding: 0.18rem 0.28rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.tiptap-toolbar .format-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.tiptap-toolbar .format-btn.active {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #a5b4fc;
+}
+
+.tiptap-toolbar .format-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.tiptap-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+}
+
+.tiptap-color-swatches .color-swatch-icon {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.color-swatch-list {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.color-swatch-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-swatch-dot:hover {
+  transform: scale(1.2);
+  border-color: #ffffff;
+}
+
+.color-swatch-dot.active {
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
+}
+
+.tiptap-font-size-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  background: transparent;
+  border: none;
+  padding: 0 0.15rem;
+}
+
+.tiptap-font-size-wrapper .font-size-icon {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.tiptap-font-size-wrapper select {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.68rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: color 0.15s ease;
+}
+
+.tiptap-font-size-wrapper select:hover {
+  color: #ffffff;
+}
+
+.tiptap-color-input {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* TipTap Content Area & ProseMirror styling */
+.tiptap-content-area {
+  flex: 1;
+  padding: 0rem 0.85rem;
+  outline: none !important;
+  overflow-y: auto;
+  font-family: inherit;
+  color: inherit;
+  word-break: break-word;
+}
+
+.tiptap-content-area .ProseMirror {
+  outline: none !important;
+  min-height: 100%;
+  height: 100%;
+}
+
+.tiptap-content-area .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  height: 0;
+}
+
+/* TipTap Headings */
+.tiptap-content-area h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  color: #f8fafc;
+}
+
+.tiptap-content-area h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 0.4rem;
+  margin-bottom: 0.2rem;
+  color: #f1f5f9;
+}
+
+/* TipTap Bullet & Numbered Lists */
+.tiptap-content-area ul,
+.tiptap-content-area ol {
+  padding-left: 1.25rem;
+  margin: 0.3rem 0;
+}
+
+.tiptap-content-area ul {
+  list-style-type: disc;
+}
+
+.tiptap-content-area ol {
+  list-style-type: decimal;
+}
+
+.tiptap-content-area li {
+  margin-bottom: 0.15rem;
+  line-height: 1.45;
+}
+
+.tiptap-content-area mark {
+  background-color: rgba(245, 158, 11, 0.3);
+  color: #fef08a;
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+}
+
+/* VS Code Dark Code Block Syntax Highlighting */
+.tiptap-content-area pre {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  font-family: 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  margin: 0.5rem 0 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.5 !important;
+  overflow-x: auto !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+}
+
+.tiptap-content-area pre code {
+  background: none !important;
+  color: inherit !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+/* Syntax Token Colors (VS Code Dark Theme) */
+.hljs-comment,
+.hljs-quote {
+  color: #6a9955 !important;
+  font-style: italic !important;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #569cd6 !important;
+  font-weight: 600 !important;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: #b5cea8 !important;
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: #ce9178 !important;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: #dcdcaa !important;
+  font-weight: 600 !important;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: #4ec9b0 !important;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: #569cd6 !important;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: #d16969 !important;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: #d7ba7d !important;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #4ec9b0 !important;
+}
+
+.hljs-meta {
+  color: #9cdcfe !important;
+}
+
+.hljs-deletion {
+  color: #f44747 !important;
+}
+
+.hljs-addition {
+  color: #b5cea8 !important;
+}
+
+.hljs-emphasis {
+  font-style: italic !important;
+}
+
+.hljs-strong {
+  font-weight: bold !important;
 }

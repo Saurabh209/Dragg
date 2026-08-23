@@ -96,17 +96,37 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (!newBoardName.trim()) return;
 
     try {
-      const res = await fetch(`${API_BASE}/boards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: newBoardName.trim(),
-          password: newBoardPassword,
-          protectionMode: newBoardProtectionMode,
-          preset: newBoardPreset
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to create board');
+      const primaryEndpoint = newBoardPreset === 'system_design' 
+        ? `${API_BASE}/system-design-boards`
+        : `${API_BASE}/freestyle-boards`;
+
+      const payload = { 
+        name: newBoardName.trim(),
+        password: newBoardPassword,
+        protectionMode: newBoardProtectionMode,
+        preset: newBoardPreset
+      };
+
+      let res;
+      try {
+        res = await fetch(primaryEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (primaryErr) {
+        console.warn('Primary creation endpoint failed, trying fallback /api/boards', primaryErr);
+      }
+
+      if (!res || !res.ok) {
+        res = await fetch(`${API_BASE}/boards`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!res || !res.ok) throw new Error('Failed to create board');
       const data = await res.json();
       showToast(`Board "${data.name}" created!`);
       
@@ -124,11 +144,15 @@ function Dashboard({ onSelectBoard, showToast }) {
       onSelectBoard(data._id, p || '', false);
     } catch (err) {
       console.error(err);
-      showToast('Failed to create board.', 'error');
+      showToast('Failed to create board. Check backend server connection on port 5000!', 'error');
     }
   };
 
   const handleBoardClick = async (board) => {
+    if (board.preset === 'system_design' && !import.meta.env.DEV) {
+      showToast("You don't have access to development feature", 'error');
+      return;
+    }
     if (board.protectionMode === 'full') {
       const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`);
       if (savedHash) {
@@ -203,10 +227,10 @@ function Dashboard({ onSelectBoard, showToast }) {
     }
   };
 
-  const handleDeleteBoard = async (e) => {
-    if (e) e.preventDefault();
+  const handleDeleteBoard = async () => {
     if (!boardToDelete) return;
-    const { _id: id, name, protectionMode } = boardToDelete;
+    const { _id, id: boardIdAlt, name, protectionMode, preset } = boardToDelete;
+    const id = _id || boardIdAlt;
 
     try {
       const headers = {};
@@ -214,10 +238,24 @@ function Dashboard({ onSelectBoard, showToast }) {
         headers['x-board-password'] = deletePassword;
       }
 
-      const res = await fetch(`${API_BASE}/boards/${id}`, { 
+      let endpoint = `${API_BASE}/boards/${id}`;
+      if (preset === 'system_design') {
+        endpoint = `${API_BASE}/system-design-boards/${id}`;
+      } else if (preset === 'freestyle') {
+        endpoint = `${API_BASE}/freestyle-boards/${id}`;
+      }
+
+      let res = await fetch(endpoint, { 
         method: 'DELETE',
         headers
       });
+
+      if (!res.ok && endpoint !== `${API_BASE}/boards/${id}`) {
+        res = await fetch(`${API_BASE}/boards/${id}`, {
+          method: 'DELETE',
+          headers
+        });
+      }
       
       if (res.status === 401) {
         showToast('Incorrect password. Authorization failed.', 'error');
@@ -227,7 +265,7 @@ function Dashboard({ onSelectBoard, showToast }) {
       
       showToast(`Board "${name}" deleted.`);
       localStorage.removeItem(`dragg-board-pass-${id}`); // Clean up password hash
-      setBoards((prev) => prev.filter((b) => b._id !== id));
+      setBoards((prev) => prev.filter((b) => (b._id || b.id) !== id));
       setBoardToDelete(null);
       setDeletePassword('');
     } catch (err) {
@@ -236,12 +274,13 @@ function Dashboard({ onSelectBoard, showToast }) {
     }
   };
 
-  // Structured Notes text file parser
+  // Structured Notes text file parser (Markdown / Plain Text)
   const parseNotesText = (text, fileName) => {
     const lines = text.split(/\r?\n/);
     const boardName = fileName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
     const board = {
       name: boardName,
+      preset: 'freestyle',
       cards: [],
       connections: [],
       pan: { x: 200, y: 150 },
@@ -251,61 +290,54 @@ function Dashboard({ onSelectBoard, showToast }) {
     let currentCard = null;
     let inCodeBlock = false;
     let codeLines = [];
+    const colors = ['slate', 'indigo', 'cyan', 'emerald', 'amber', 'rose'];
 
     const createNewCard = (title) => {
+      const cardIndex = board.cards.length;
       return {
-        id: Math.random().toString(36).substring(2, 11),
+        id: 'card_' + Math.random().toString(36).substring(2, 11),
         title: title || 'Untitled Card',
         content: '',
         code: '',
         tags: [],
-        color: 'slate',
+        color: colors[cardIndex % colors.length],
         type: 'note',
         cardMode: 'notes',
-        width: 250,
-        height: 180
+        width: 280,
+        height: 200,
+        x: cardIndex * 360,
+        y: 150,
+        badge: null,
+        features: { notes: true, sketch: true, attachments: true, tags: true }
       };
     };
 
     lines.forEach((line) => {
       const trimmed = line.trim();
 
-      // Treat any heading line (starting with #, ##, ###) as a new card
+      // Heading line (# Heading Title) -> Creates new card
       if (trimmed.startsWith('#')) {
         const cardTitle = trimmed.replace(/^#+\s*/, '');
         currentCard = createNewCard(cardTitle);
-        
-        // Auto-position cards horizontally in a line to avoid overlap
-        const cardIndex = board.cards.length;
-        currentCard.x = cardIndex * 360;
-        currentCard.y = 150;
-
-        // Visual Colors Cycle
-        const colors = ['slate', 'indigo', 'cyan', 'emerald', 'amber', 'rose'];
-        currentCard.color = colors[cardIndex % colors.length];
-
         board.cards.push(currentCard);
         return;
       }
 
-      // If no card is active, ignore text or auto-create an Introduction card
       if (!currentCard) {
         if (trimmed.length > 0) {
-          currentCard = createNewCard('Introduction');
-          currentCard.x = 0;
-          currentCard.y = 150;
+          currentCard = createNewCard('Overview Note');
           board.cards.push(currentCard);
         } else {
           return;
         }
       }
 
-      // Check for Code Block boundaries
+      // Code Block Handling (```js ... ```)
       if (trimmed.startsWith('```')) {
         if (inCodeBlock) {
           inCodeBlock = false;
           currentCard.code = codeLines.join('\n');
-          currentCard.cardMode = 'code'; // Automatically default workspace to Code tab
+          currentCard.cardMode = 'code';
           codeLines = [];
         } else {
           inCodeBlock = true;
@@ -314,18 +346,46 @@ function Dashboard({ onSelectBoard, showToast }) {
       }
 
       if (inCodeBlock) {
-        codeLines.push(line); // Preserve leading spaces for code indentation!
+        codeLines.push(line);
         return;
       }
 
-      // Check for tags: e.g. "Tags: scope, lexical"
+      // Tags line: e.g. "Tags: API, Gateway, Microservice"
       if (trimmed.toLowerCase().startsWith('tags:')) {
         const tagList = trimmed.substring(5).split(',').map((t) => t.trim()).filter(Boolean);
         currentCard.tags = [...new Set([...currentCard.tags, ...tagList])];
         return;
       }
 
-      // Append content text description
+      // Badge line: e.g. "Badge: ENTRY POINT"
+      if (trimmed.toLowerCase().startsWith('badge:')) {
+        const badgeVal = trimmed.substring(6).trim();
+        if (badgeVal) {
+          currentCard.badge = { text: badgeVal, color: '' };
+        }
+        return;
+      }
+
+      // Type line: e.g. "Type: minimal" or "Type: code"
+      if (trimmed.toLowerCase().startsWith('type:')) {
+        const typeVal = trimmed.substring(5).trim().toLowerCase();
+        if (['minimal', 'note', 'code'].includes(typeVal)) {
+          currentCard.type = typeVal;
+          if (typeVal === 'minimal') currentCard.cardMode = 'notes';
+        }
+        return;
+      }
+
+      // Color line: e.g. "Color: indigo"
+      if (trimmed.toLowerCase().startsWith('color:')) {
+        const colorVal = trimmed.substring(6).trim().toLowerCase();
+        if (colors.includes(colorVal)) {
+          currentCard.color = colorVal;
+        }
+        return;
+      }
+
+      // Content paragraph
       if (currentCard.content) {
         currentCard.content += '\n' + line;
       } else {
@@ -347,7 +407,7 @@ function Dashboard({ onSelectBoard, showToast }) {
       }
     }
 
-    return [board]; // Return inside a single-element list to match REST creator loop
+    return [board];
   };
 
   const handleImportNotesFile = async (e) => {
@@ -368,45 +428,51 @@ function Dashboard({ onSelectBoard, showToast }) {
             } else {
               parsedBoards = [{
                 name: file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+                preset: 'freestyle',
                 cards: json.map((c, i) => ({
-                  id: c.id || Math.random().toString(36).substring(2, 11),
+                  id: c.id || 'card_' + Math.random().toString(36).substring(2, 11),
                   title: c.title || `Card ${i + 1}`,
                   content: c.content || '',
                   code: c.code || '',
                   badge: c.badge || null,
+                  tags: c.tags || [],
                   color: c.color || 'slate',
                   x: c.x !== undefined ? c.x : i * 360,
                   y: c.y !== undefined ? c.y : 150,
-                  width: c.width || 250,
-                  height: c.height || 180,
+                  width: c.width || 280,
+                  height: c.height || 200,
                   type: c.type || 'note',
-                  cardMode: c.cardMode || 'notes'
+                  cardMode: c.cardMode || (c.code ? 'code' : 'notes'),
+                  features: { notes: true, sketch: true, attachments: true, tags: true }
                 })),
                 connections: [],
                 pan: { x: 100, y: 100 },
-                zoom: 0.9
+                zoom: 0.85
               }];
             }
           } else if (typeof json === 'object' && json !== null) {
             parsedBoards = [{
               name: json.name || file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+              preset: 'freestyle',
               cards: (json.cards || []).map((c, i) => ({
-                id: c.id || Math.random().toString(36).substring(2, 11),
+                id: c.id || 'card_' + Math.random().toString(36).substring(2, 11),
                 title: c.title || `Card ${i + 1}`,
                 content: c.content || '',
                 code: c.code || '',
                 badge: c.badge || null,
+                tags: c.tags || [],
                 color: c.color || 'slate',
                 x: c.x !== undefined ? c.x : i * 360,
                 y: c.y !== undefined ? c.y : 150,
-                width: c.width || 250,
-                height: c.height || 180,
+                width: c.width || 280,
+                height: c.height || 200,
                 type: c.type || 'note',
-                cardMode: c.cardMode || 'notes'
+                cardMode: c.cardMode || (c.code ? 'code' : 'notes'),
+                features: { notes: true, sketch: true, attachments: true, tags: true }
               })),
               connections: json.connections || [],
               pan: json.pan || { x: 100, y: 100 },
-              zoom: json.zoom || 0.9
+              zoom: json.zoom || 0.85
             }];
           }
         } catch (jsonErr) {
@@ -427,29 +493,44 @@ function Dashboard({ onSelectBoard, showToast }) {
 
       try {
         for (const pb of parsedBoards) {
-          // 1. Create the board
-          const createRes = await fetch(`${API_BASE}/boards`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: pb.name }),
-          });
-          if (!createRes.ok) throw new Error('Failed to create board during import');
+          const payload = {
+            name: pb.name,
+            preset: 'freestyle',
+            cards: pb.cards || [],
+            connections: pb.connections || [],
+            pan: pb.pan || { x: 200, y: 150 },
+            zoom: pb.zoom || 0.85
+          };
+
+          let createRes;
+          try {
+            createRes = await fetch(`${API_BASE}/freestyle-boards`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+          } catch (err) {
+            console.warn('Freestyle import endpoint failed, falling back to /api/boards', err);
+          }
+
+          if (!createRes || !createRes.ok) {
+            createRes = await fetch(`${API_BASE}/boards`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+          }
+
+          if (!createRes || !createRes.ok) throw new Error('Failed to create board during import');
           const data = await createRes.json();
 
-          // 2. Populate the board with parsed cards & connections
-          const updateRes = await fetch(`${API_BASE}/boards/${data._id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: pb.name,
-              cards: pb.cards,
-              connections: pb.connections,
-              drawings: [],
-              pan: pb.pan,
-              zoom: pb.zoom
-            }),
-          });
-          if (!updateRes.ok) throw new Error('Failed to update board details during import');
+          if (pb.cards && pb.cards.length > 0) {
+            await fetch(`${API_BASE}/freestyle-boards/${data._id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cards: pb.cards, connections: pb.connections || [] }),
+            }).catch(() => {});
+          }
         }
 
         showToast(`Successfully imported ${parsedBoards.length} board(s)!`);
@@ -663,18 +744,41 @@ function Dashboard({ onSelectBoard, showToast }) {
               const imageCount = board.cards?.filter(c => c.type === 'image').length || 0;
               const linkCount = board.connections?.length || 0;
               const strokeCount = board.drawings?.length || 0;
+              const isSystemDesignProd = board.preset === 'system_design' && !import.meta.env.DEV;
 
               return (
                 <div 
                   key={board._id} 
                   className="board-card detailed-board-card glass"
                   onClick={() => handleBoardClick(board)}
+                  title={isSystemDesignProd ? "You don't have access to development feature" : board.name}
+                  style={{
+                    cursor: isSystemDesignProd ? 'not-allowed' : 'pointer',
+                    opacity: isSystemDesignProd ? 0.75 : 1
+                  }}
                 >
                   <div className="board-card-header-row">
                     <span className="board-card-name-text" title={board.name}>
                       {board.name}
                     </span>
                     <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                      {board.preset === 'system_design' && (
+                        <span 
+                          style={{
+                            background: import.meta.env.DEV ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                            border: import.meta.env.DEV ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                            color: import.meta.env.DEV ? '#a7f3d0' : '#fef08a',
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}
+                        >
+                          {import.meta.env.DEV ? 'DEV MODE' : '🚧 UNDER DEVELOPMENT'}
+                        </span>
+                      )}
                       {board.protectionMode === 'full' && (
                         <Lock size={13} color="var(--accent-rose)" title="Fully Password Protected" />
                       )}
@@ -796,16 +900,30 @@ function Dashboard({ onSelectBoard, showToast }) {
                 </div>
                 <div 
                   type="button"
-                  className="preset-card coming-soon"
-                  title="Coming Soon!"
-                  onClick={() => showToast('System Design preset is coming soon!', 'info')}
+                  className={`preset-card ${newBoardPreset === 'system_design' ? 'selected' : ''}`}
+                  onClick={() => {
+                    if (!import.meta.env.DEV) {
+                      showToast('System Design feature is under active development in Production.', 'info');
+                      return;
+                    }
+                    setNewBoardPreset('system_design');
+                  }}
+                  style={{ cursor: import.meta.env.DEV ? 'pointer' : 'not-allowed', opacity: import.meta.env.DEV ? 1 : 0.65 }}
                 >
-                  <span className="preset-card-badge">Coming Soon</span>
+                  {import.meta.env.DEV ? (
+                    <span className="preset-card-badge" style={{ background: '#10b981', color: '#ffffff' }}>DEV MODE</span>
+                  ) : (
+                    <span className="preset-card-badge" style={{ background: '#f59e0b', color: '#ffffff' }}>UNDER DEVELOPMENT</span>
+                  )}
                   <div className="preset-card-icon-container">
-                    <Layers size={18} />
+                    <Layers size={18} style={{ color: import.meta.env.DEV ? '#10b981' : '#f59e0b' }} />
                   </div>
                   <span className="preset-card-name">System Design</span>
-                  <span className="preset-card-desc">Developer canvas with databases, queues, caches, and flow paths.</span>
+                  <span className="preset-card-desc">
+                    {import.meta.env.DEV 
+                      ? 'Developer canvas preloaded with frontend, gateways, load balancers, DBs, and 90° links.' 
+                      : 'Under Active Development (Available in Dev Mode).'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1108,89 +1226,153 @@ function Dashboard({ onSelectBoard, showToast }) {
             className="modal-content glass"
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '560px',
-              maxWidth: '92%',
-              maxHeight: '85vh',
+              width: '640px',
+              maxWidth: '94%',
+              maxHeight: '88vh',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
               gap: '1rem',
-              background: 'rgba(14, 14, 22, 0.95)',
+              background: 'rgba(14, 14, 22, 0.96)',
               backdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
               borderRadius: '16px',
-              padding: '1.4rem'
+              padding: '1.5rem',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.15)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Info size={18} color="var(--accent-cyan)" />
-                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', fontWeight: 700 }}>
-                  Import Notes Format Guide
-                </h3>
-                <span style={{ background: 'linear-gradient(135deg, #f43f5e, #ec4899)', color: '#fff', fontSize: '0.6rem', fontWeight: 800, padding: '0.12rem 0.4rem', borderRadius: '4px' }}>
-                  BETA
-                </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '0.8rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Info size={20} color="var(--accent-cyan)" />
+                <div>
+                  <h3 style={{ margin: 0, color: '#fff', fontSize: '1.15rem', fontWeight: 700 }}>
+                    Import Notes & Board Format Guide
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    Automated Whiteboard Generator for Markdown & JSON
+                  </span>
+                </div>
               </div>
               <button 
                 onClick={() => setShowImportHelpModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px' }}
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: '1.5', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: '1.5', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <p style={{ margin: 0 }}>
-                You can generate entire whiteboards automatically by importing structured files. Supported formats: <strong style={{ color: '#fff' }}>JSON (.json)</strong> and <strong style={{ color: '#fff' }}>Structured Markdown/Text (.md, .txt)</strong>.
+                Import structured files to instantly generate complete interactive whiteboards! Supported formats: <strong style={{ color: '#38bdf8' }}>Markdown / Plain Text (.md, .txt)</strong> and <strong style={{ color: '#34d399' }}>Full Board JSON (.json)</strong>.
               </p>
 
-              <div>
-                <h4 style={{ margin: '0 0 0.3rem 0', color: '#a5b4fc', fontSize: '0.85rem', fontWeight: 600 }}>
-                  Format 1: Full Board JSON (.json)
-                </h4>
-                <pre style={{
-                  background: 'rgba(0, 0, 0, 0.6)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '8px',
-                  padding: '0.7rem 0.9rem',
-                  color: '#38bdf8',
-                  fontSize: '0.75rem',
-                  fontFamily: 'monospace',
-                  overflowX: 'auto',
-                  whiteSpace: 'pre-wrap',
-                  margin: 0
-                }}>
-{`{
-  "name": "My System Architecture",
-  "cards": [
-    {
-      "title": "Auth API Service",
-      "content": "Handles login and OAuth authentication.",
-      "color": "indigo",
-      "badge": { "text": "ENTRY POINT", "color": "#881337" },
-      "x": 100,
-      "y": 120
-    },
-    {
-      "title": "MongoDB Database",
-      "content": "Stores user profiles and analytics.",
-      "color": "emerald",
-      "badge": { "text": "FEATURE", "color": "#065f46" },
-      "x": 450,
-      "y": 120
-    }
-  ]
-}`}
-                </pre>
-              </div>
+              {/* Format 1: Structured Markdown / Text (.md) */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <h4 style={{ margin: 0, color: '#38bdf8', fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <FileText size={16} /> Format 1: Markdown Notes (.md, .txt)
+                  </h4>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mdDemo = `# 🚀 API Gateway Service
+Handles API routing, auth validation, and rate limiting.
+Badge: ENTRY POINT
+Tags: API, Gateway, Microservice
+Type: note
+Color: indigo
 
-              <div>
-                <h4 style={{ margin: '0 0 0.3rem 0', color: '#a5b4fc', fontSize: '0.85rem', fontWeight: 600 }}>
-                  Format 2: Markdown Notes (.md, .txt)
-                </h4>
+# 📊 PostgreSQL Database
+Primary relational storage for user profiles and transactions.
+Badge: DATABASE
+Tags: Storage, Postgres, DB
+Type: note
+Color: emerald
+
+# ⚡ JWT Verification Code
+\`\`\`js
+function verifyToken(req, res, next) {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  jwt.verify(token, process.env.SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user; next();
+  });
+}
+\`\`\`
+Badge: SECURITY
+Tags: Code, Auth, JWT
+Type: code
+Color: cyan
+
+# 💡 Minimal Task Note
+Quick deployment checklist note with minimal multiline card layout.
+Type: minimal
+Color: amber`;
+                        navigator.clipboard.writeText(mdDemo);
+                        showToast('Markdown demo template copied to clipboard!', 'success');
+                      }}
+                      className="glass-btn"
+                      style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
+                    >
+                      Copy Demo .md
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mdDemo = `# 🚀 API Gateway Service
+Handles API routing, auth validation, and rate limiting.
+Badge: ENTRY POINT
+Tags: API, Gateway, Microservice
+Type: note
+Color: indigo
+
+# 📊 PostgreSQL Database
+Primary relational storage for user profiles and transactions.
+Badge: DATABASE
+Tags: Storage, Postgres, DB
+Type: note
+Color: emerald
+
+# ⚡ JWT Verification Code
+\`\`\`js
+function verifyToken(req, res, next) {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  jwt.verify(token, process.env.SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user; next();
+  });
+}
+\`\`\`
+Badge: SECURITY
+Tags: Code, Auth, JWT
+Type: code
+Color: cyan
+
+# 💡 Minimal Task Note
+Quick deployment checklist note with minimal multiline card layout.
+Type: minimal
+Color: amber`;
+                        const element = document.createElement('a');
+                        const file = new Blob([mdDemo], {type: 'text/plain'});
+                        element.href = URL.createObjectURL(file);
+                        element.download = 'sample-dragg-notes.md';
+                        document.body.appendChild(element);
+                        element.click();
+                        document.body.removeChild(element);
+                        showToast('Downloaded sample-dragg-notes.md demo file!', 'success');
+                      }}
+                      className="glass-btn"
+                      style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
+                    >
+                      Download Demo .md
+                    </button>
+                  </div>
+                </div>
                 <pre style={{
-                  background: 'rgba(0, 0, 0, 0.6)',
+                  background: 'rgba(0, 0, 0, 0.65)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '8px',
                   padding: '0.7rem 0.9rem',
@@ -1199,39 +1381,159 @@ function Dashboard({ onSelectBoard, showToast }) {
                   fontFamily: 'monospace',
                   overflowX: 'auto',
                   whiteSpace: 'pre-wrap',
-                  margin: 0
+                  margin: 0,
+                  maxHeight: '160px'
                 }}>
-{`# Auth API Service
-Handles user authentication and JWT validation.
+{`# API Gateway Service
+Handles API routing and rate limiting.
+Badge: ENTRY POINT
+Tags: API, Gateway
+Type: note
+Color: indigo
 
-# MongoDB Database
-Stores user profiles and real-time logs.`}
+# JWT Auth Controller
+\`\`\`js
+function verifyToken(req, res, next) { ... }
+\`\`\`
+Tags: Code, Auth
+Type: code
+Color: cyan`}
+                </pre>
+              </div>
+
+              {/* Format 2: Full Board JSON (.json) */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(52, 211, 153, 0.2)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <h4 style={{ margin: 0, color: '#34d399', fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={16} /> Format 2: Full Board Backup (.json)
+                  </h4>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const jsonDemo = JSON.stringify({
+                          name: "E-Commerce Architecture Overview",
+                          cards: [
+                            {
+                              id: "card_gw",
+                              title: "API Gateway",
+                              content: "Routes external client traffic to microservices.",
+                              badge: { text: "GATEWAY", color: "#1d4ed8" },
+                              tags: ["Traffic", "API"],
+                              color: "indigo",
+                              type: "note",
+                              x: 100,
+                              y: 150
+                            },
+                            {
+                              id: "card_auth",
+                              title: "Auth Service",
+                              content: "OAuth2 & JWT authentication worker node.",
+                              badge: { text: "MICROSERVICE", color: "#047857" },
+                              tags: ["Auth", "Security"],
+                              color: "emerald",
+                              type: "note",
+                              x: 460,
+                              y: 150
+                            }
+                          ],
+                          connections: [
+                            { id: "c1", fromCardId: "card_gw", fromSide: "right", toCardId: "card_auth", toSide: "left" }
+                          ]
+                        }, null, 2);
+                        navigator.clipboard.writeText(jsonDemo);
+                        showToast('JSON demo template copied to clipboard!', 'success');
+                      }}
+                      className="glass-btn"
+                      style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(52, 211, 153, 0.4)', color: '#34d399' }}
+                    >
+                      Copy Demo JSON
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const jsonDemo = JSON.stringify({
+                          name: "E-Commerce Architecture Overview",
+                          cards: [
+                            {
+                              id: "card_gw",
+                              title: "API Gateway",
+                              content: "Routes external client traffic to microservices.",
+                              badge: { text: "GATEWAY", color: "#1d4ed8" },
+                              tags: ["Traffic", "API"],
+                              color: "indigo",
+                              type: "note",
+                              x: 100,
+                              y: 150
+                            },
+                            {
+                              id: "card_auth",
+                              title: "Auth Service",
+                              content: "OAuth2 & JWT authentication worker node.",
+                              badge: { text: "MICROSERVICE", color: "#047857" },
+                              tags: ["Auth", "Security"],
+                              color: "emerald",
+                              type: "note",
+                              x: 460,
+                              y: 150
+                            }
+                          ],
+                          connections: [
+                            { id: "c1", fromCardId: "card_gw", fromSide: "right", toCardId: "card_auth", toSide: "left" }
+                          ]
+                        }, null, 2);
+                        const element = document.createElement('a');
+                        const file = new Blob([jsonDemo], {type: 'application/json'});
+                        element.href = URL.createObjectURL(file);
+                        element.download = 'sample-dragg-board.json';
+                        document.body.appendChild(element);
+                        element.click();
+                        document.body.removeChild(element);
+                        showToast('Downloaded sample-dragg-board.json demo file!', 'success');
+                      }}
+                      className="glass-btn"
+                      style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(52, 211, 153, 0.4)', color: '#34d399' }}
+                    >
+                      Download Demo .json
+                    </button>
+                  </div>
+                </div>
+                <pre style={{
+                  background: 'rgba(0, 0, 0, 0.65)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '0.7rem 0.9rem',
+                  color: '#38bdf8',
+                  fontSize: '0.75rem',
+                  fontFamily: 'monospace',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  margin: 0,
+                  maxHeight: '160px'
+                }}>
+{`{
+  "name": "E-Commerce Architecture Overview",
+  "cards": [
+    {
+      "id": "card_gw",
+      "title": "API Gateway",
+      "content": "Routes external client traffic to microservices.",
+      "badge": { "text": "GATEWAY" },
+      "tags": ["Traffic", "API"],
+      "color": "indigo",
+      "x": 100, "y": 150
+    }
+  ]
+}`}
                 </pre>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.4rem' }}>
-              <button
-                onClick={() => {
-                  const sampleJson = JSON.stringify({
-                    name: "Sample Imported Board",
-                    cards: [
-                      { title: "Main Controller", content: "Primary entry point for requests.", badge: { text: "ENTRY POINT", color: "#881337" }, x: 100, y: 120 },
-                      { title: "Database Module", content: "PostgreSQL query execution handler.", badge: { text: "FEATURE", color: "#065f46" }, x: 450, y: 120 }
-                    ]
-                  }, null, 2);
-                  navigator.clipboard.writeText(sampleJson);
-                  showToast('Sample JSON template copied to clipboard!', 'success');
-                }}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
-              >
-                Copy Sample Template
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.4rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '0.8rem' }}>
               <button
                 onClick={() => setShowImportHelpModal(false)}
                 className="btn btn-primary"
-                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', background: 'var(--accent-indigo)' }}
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem', background: 'var(--accent-indigo)', borderRadius: '8px' }}
               >
                 Got It
               </button>
@@ -1299,31 +1601,54 @@ Stores user profiles and real-time logs.`}
             {/* Feature Cards Grid */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-              {/* Feature 1: Custom Right-Click Context Menu */}
+              {/* Feature 1: Dedicated Board Architecture */}
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <MousePointerClick size={18} style={{ color: '#a855f7' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#e9d5ff' }}>
-                    Custom Right-Click Context Menu
+                  <Layers size={18} style={{ color: '#10b981' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#a7f3d0' }}>
+                    Freestyle & System Design Board Architecture
                   </h4>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Right-click anywhere on cards or blank canvas to trigger a glassmorphic context menu with screen-clamped viewport bounds and ultra-high stacking.
+                  Separate board modes built for distinct workflows! <strong>Freestyle Boards</strong> feature full whiteboards with notes, minimal cards, and sketches. <strong>System Design Canvas</strong> provides an exclusive clean slate for system architecture.
                 </p>
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', border: '1px solid rgba(168, 85, 247, 0.4)', color: '#e9d5ff', padding: '2px 8px', borderRadius: '6px' }}>
-                    Smart Copy (Copy 1, 2, 3...)
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
+                    Freestyle Engine
                   </span>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.4)', color: '#a5b4fc', padding: '2px 8px', borderRadius: '6px' }}>
-                    Batch Copy (Ctrl+D)
-                  </span>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(244, 63, 94, 0.2)', border: '1px solid rgba(244, 63, 94, 0.4)', color: '#fecdd3', padding: '2px 8px', borderRadius: '6px' }}>
-                    Batch Delete (Del)
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.2)', border: '1px solid rgba(245, 158, 11, 0.4)', color: '#fef08a', padding: '2px 8px', borderRadius: '6px' }}>
+                    System Design (Dev Mode)
                   </span>
                 </div>
               </div>
 
-              {/* Feature 2: Multi-Card Marquee Select & Group Movement */}
+              {/* Feature 2: Structured File Import (.json, .md, .txt) */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <FileText size={18} style={{ color: '#38bdf8' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#bae6fd' }}>
+                    Automated File Import (.json, .md, .txt)
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Instantly import structured markdown files, note text, or full board JSON backups directly from the Dashboard to generate pre-configured whiteboards in seconds.
+                </p>
+              </div>
+
+              {/* Feature 3: Smart Tag & Feature Configuration */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                  <MousePointerClick size={18} style={{ color: '#a855f7' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#e9d5ff' }}>
+                    Normalized Badges & Feature Control
+                  </h4>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+                  Enhanced card feature toggles (Notes, Sketch, Attachments, Tags) and badge normalizers for ghost-free tag pill rendering and clean bottom layout padding.
+                </p>
+              </div>
+
+              {/* Feature 4: Multi-Card Marquee Select & Group Movement */}
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
                   <BoxSelect size={18} style={{ color: '#38bdf8' }} />
@@ -1333,43 +1658,6 @@ Stores user profiles and real-time logs.`}
                 </div>
                 <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
                   Switch to <strong>Box Select Mode (M)</strong> to draw a marquee selection rectangle over multiple cards. Selected cards lock inside a glassmorphic container with a floating drag handle!
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#bae6fd', padding: '2px 8px', borderRadius: '6px' }}>
-                    Marquee Drag Box
-                  </span>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
-                    Group Drag Handle
-                  </span>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(234, 179, 8, 0.2)', border: '1px solid rgba(234, 179, 8, 0.4)', color: '#fef08a', padding: '2px 8px', borderRadius: '6px' }}>
-                    Shortcut: M
-                  </span>
-                </div>
-              </div>
-
-              {/* Feature 3: Live Animated Canvas Backgrounds */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Palette size={18} style={{ color: '#34d399' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#a7f3d0' }}>
-                    Live Minimal Animated Backgrounds Tab
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Choose from dedicated live animated backgrounds including <strong>Interactive Particles</strong>, <strong>Constellation Mesh</strong>, <strong>Floating Stardust</strong>, and <strong>Matrix Rain Stream</strong>.
-                </p>
-              </div>
-
-              {/* Feature 4: Curated Clean Grid System & Toned-Down Opacity */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Layers size={18} style={{ color: '#818cf8' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#c7d2fe' }}>
-                    Curated Minimalist Grid & Opacity Toning
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Retained essential high-utility grid patterns (Dotted, Graph, Major/Minor Grid, Blueprint, Blank) with toned-down major grid line opacity for zero distraction.
                 </p>
               </div>
 
@@ -1382,88 +1670,7 @@ Stores user profiles and real-time logs.`}
                   </h4>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Right-click a card and select <strong>View Connection Path</strong> to animate downstream connections from left to right in a slow, cinematic cascade. Unrelated elements dim and lock automatically to prevent accidental edits.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(6, 182, 212, 0.2)', border: '1px solid rgba(6, 182, 212, 0.4)', color: 'var(--accent-cyan)', padding: '2px 8px', borderRadius: '6px' }}>
-                    Wave Cascade Delays
-                  </span>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', border: '1px solid rgba(168, 85, 247, 0.4)', color: '#e9d5ff', padding: '2px 8px', borderRadius: '6px' }}>
-                    Highlight Persistence
-                  </span>
-                </div>
-              </div>
-
-              {/* Feature 6: Group Lock Propagation */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Lock size={18} style={{ color: 'var(--accent-rose)' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#ffe4e6' }}>
-                    Group Lock Propagation
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Locking a group container propagates locks to all children. Child cards render as locked and block any edit actions, deletion, resizing, or dragging.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(244, 63, 94, 0.2)', border: '1px solid rgba(244, 63, 94, 0.4)', color: 'var(--accent-rose)', padding: '2px 8px', borderRadius: '6px' }}>
-                    Lock Propagation
-                  </span>
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#a7f3d0', padding: '2px 8px', borderRadius: '6px' }}>
-                    Multi-Selection Guard
-                  </span>
-                </div>
-              </div>
-
-              {/* Feature 7: Text Formatting Toolbar Global Toggle */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Type size={18} style={{ color: '#a5b4fc' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#c7d2fe' }}>
-                    Rich Text Format Global Toggle
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Enable or disable card text editing formatting bars globally using the Type toggle button in the top-right toolbar. Keep your note-taking view distraction-free!
-                </p>
-              </div>
-
-              {/* Feature 8: Persistent Connection Path Tracing & Explicit Clear */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Compass size={18} style={{ color: 'var(--accent-cyan)' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#bae6fd' }}>
-                    Persistent Connection Tracing
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Downstream connections remain traced persistently while editing note text, panning the canvas, or selecting other cards. Instantly reset the tracing using the dedicated <strong>Clear Highlight</strong> toolbar button.
-                </p>
-              </div>
-
-              {/* Feature 9: Minimal Card Mode */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Type size={18} style={{ color: 'var(--accent-indigo)' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#c7d2fe' }}>
-                    Minimal Multiline Card Mode
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Create distraction-free <strong>Minimal Cards</strong> that only display text with zero borders, checkboxes, badges, or buttons. Features multiline text-wrapping with hidden scrollbars and a top-right drag handle.
-                </p>
-              </div>
-
-              {/* Feature 10: Styling & Layout Context Menu */}
-              <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                  <Palette size={18} style={{ color: 'var(--accent-cyan)' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#a7f3d0' }}>
-                    Right-Click Styling & Layout Centralization
-                  </h4>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                  Removed layout, color, and status actions from card headers to maximize canvas space. All advanced styling options—like background colors, connection snapping styles, outline assignments, and task completion—are now managed via right-click!
+                  Right-click a card and select <strong>View Connection Path</strong> to animate downstream connections from left to right in a slow, cinematic cascade.
                 </p>
               </div>
 

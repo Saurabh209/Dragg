@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from './Card';
 import LeftVerticalToolbar from './LeftVerticalToolbar';
-import LiveCanvasBackground from './LiveCanvasBackground';
 import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import GroupContainer from './GroupContainer';
+import SystemDesignCatalogModal from '../system_design/modals/SystemDesignCatalogModal';
+import SystemNodeInspectorModal from '../system_design/modals/SystemNodeInspectorModal';
+import CodeStorageCardModal from '../features/modals/CodeStorageCardModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -243,6 +245,70 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const [selectionBox, setSelectionBox] = useState(null);
   const selectedCardId = selectedCardIds[0] || null;
   const setSelectedCardId = (id) => setSelectedCardIds(id ? [id] : []);
+
+  // System Design states & modals
+  const [isSystemCatalogOpen, setIsSystemCatalogOpen] = useState(false);
+  const [inspectingSystemNode, setInspectingSystemNode] = useState(null);
+  const [activeCodeStorageCard, setActiveCodeStorageCard] = useState(null);
+
+  // Keyboard shortcut listener (Cmd+K / Ctrl+K) for System Architecture Catalog
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSystemCatalogOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleSelectSystemNode = (item) => {
+    const newCard = {
+      id: 'sys_' + Date.now(),
+      type: item.id === 'code_card' ? 'code_storage' : (item.id === 'group' ? 'group_container' : 'system_node'),
+      nodeType: item.id,
+      title: item.name,
+      category: item.category,
+      color: item.color || '#10b981',
+      x: Math.round(-pan.x + window.innerWidth / 2 - 100),
+      y: Math.round(-pan.y + window.innerHeight / 2 - 80),
+      width: item.id === 'group' ? 320 : 220,
+      height: item.id === 'group' ? 140 : 130,
+      tags: item.category ? [item.category] : [],
+      description: item.id === 'load_balancer' ? 'Routes API traffic' : (item.id === 'scheduler' ? 'Triggers scheduled work' : 'System component'),
+      isConfigured: false,
+      systemConfig: {
+        layer: 'Layer 7',
+        strategy: 'Round robin',
+        healthChecks: 'Active',
+        sessionAffinity: 'None',
+        failover: 'Multi-zone',
+        scheduleType: 'Cron',
+        scheduleCron: '0 0 * * *',
+        timezone: 'UTC',
+        overlap: 'Skip',
+        missedRuns: 'Run once',
+        retryPolicy: 'None'
+      },
+      code: item.id === 'code_card' ? '// Paste copied code snippet here' : '',
+      language: 'javascript'
+    };
+
+    setCards((prev) => [...prev, newCard]);
+  };
+
+  const handleSaveSystemNodeConfig = (nodeId, updatedFields) => {
+    setCards((prev) =>
+      prev.map((c) => (c.id === nodeId ? { ...c, ...updatedFields } : c))
+    );
+  };
+
+  const handleSaveCodeSnippet = (cardId, updatedFields) => {
+    setCards((prev) =>
+      prev.map((c) => (c.id === cardId ? { ...c, ...updatedFields } : c))
+    );
+  };
 
   useEffect(() => {
     localStorage.setItem('dragg-grid-type', gridType);
@@ -918,15 +984,31 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
 
 
+  const getBoardEndpoint = () => {
+    if (boardId.startsWith('sd_')) return `${API_BASE}/system-design-boards/${boardId}`;
+    if (boardId.startsWith('fs_')) return `${API_BASE}/freestyle-boards/${boardId}`;
+    return `${API_BASE}/boards/${boardId}`;
+  };
+
+  const [boardPreset, setBoardPreset] = useState(() => (boardId.startsWith('sd_') ? 'system_design' : 'freestyle'));
+
   // Load board details
   useEffect(() => {
     const fetchBoardDetails = async () => {
       try {
-        const res = await fetch(`${API_BASE}/boards/${boardId}`, {
+        let endpoint = getBoardEndpoint();
+        let res = await fetch(endpoint, {
           headers: {
             'x-board-password': localPassword
           }
         });
+        if (!res.ok && endpoint !== `${API_BASE}/boards/${boardId}`) {
+          res = await fetch(`${API_BASE}/boards/${boardId}`, {
+            headers: {
+              'x-board-password': localPassword
+            }
+          });
+        }
         if (res.status === 401) {
           setShowUnlockModal(true);
           return;
@@ -935,6 +1017,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         const data = await res.json();
 
         setBoardName(data.name || 'Untitled Board');
+        setBoardPreset(data.preset || (boardId.startsWith('sd_') ? 'system_design' : 'freestyle'));
         setCards(data.cards || []);
         setConnections(data.connections || []);
         setDrawings(data.drawings || []);
@@ -1577,7 +1660,14 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
 
   // Zoom on wheel (relative to cursor)
   const handleWheel = (e) => {
-    if (e.target.closest('.outline-sidebar-panel') || e.target.closest('.code-split-panel')) {
+    if (
+      e.target.closest('.outline-sidebar-panel') ||
+      e.target.closest('.code-split-panel') ||
+      e.target.closest('.card-wrapper') ||
+      e.target.closest('.tiptap-toolbar') ||
+      e.target.closest('.tiptap-content-area') ||
+      e.target.closest('.card-body')
+    ) {
       return;
     }
 
@@ -3236,11 +3326,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           cursor: getCursorStyleCss(cursorStyle)
         }}
       >
-        {/* Live Minimal Animated Canvas Background Layer */}
-        <LiveCanvasBackground type={liveBgStyle} />
-
-        {/* Background Canvas Grid (Hidden when Live Animated BG is active) */}
-        {gridType !== 'none' && liveBgStyle === 'none' && (
+        {/* Background Canvas Grid */}
+        {gridType !== 'none' && (
           <div
             className={`canvas-grid grid-${gridType}`}
             style={{
@@ -4099,6 +4186,8 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
                   showBadgePicker={activeBadgePickerCardId === card.id}
                   onCloseBadgePicker={() => setActiveBadgePickerCardId(null)}
                   onToggleBadgePicker={(cardId) => setActiveBadgePickerCardId((prev) => (prev === cardId ? null : cardId))}
+                  onInspectSystemNode={(node) => setInspectingSystemNode(node)}
+                  onOpenCodeStorage={(cardItem) => setActiveCodeStorageCard(cardItem)}
                 />
               );
             })}
@@ -4209,6 +4298,7 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         {/* Floating Canvas Toolbar controls */}
         {!isViewOnly && (
           <LeftVerticalToolbar
+            onOpenSystemCatalog={boardPreset === 'system_design' ? () => setIsSystemCatalogOpen(true) : undefined}
             onAddCardDirect={handleAddCardDirect}
             onAddCardCustom={handleAddCard}
             gridType={gridType}
@@ -5167,6 +5257,29 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
           )}
         </div>
       )}
+
+      {/* System Architecture Node Catalog Modal */}
+      <SystemDesignCatalogModal
+        isOpen={isSystemCatalogOpen}
+        onClose={() => setIsSystemCatalogOpen(false)}
+        onSelectNode={handleSelectSystemNode}
+      />
+
+      {/* System Architecture Node Inspector Modal */}
+      <SystemNodeInspectorModal
+        isOpen={!!inspectingSystemNode}
+        onClose={() => setInspectingSystemNode(null)}
+        node={inspectingSystemNode}
+        onSaveConfig={handleSaveSystemNodeConfig}
+      />
+
+      {/* Code Snippet Storage Card Modal */}
+      <CodeStorageCardModal
+        isOpen={!!activeCodeStorageCard}
+        onClose={() => setActiveCodeStorageCard(null)}
+        card={activeCodeStorageCard}
+        onSaveCode={handleSaveCodeSnippet}
+      />
     </div>
   );
 }
