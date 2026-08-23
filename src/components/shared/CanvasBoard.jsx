@@ -203,7 +203,7 @@ const pointsToSvgPath = (points, r) => {
   return pathStr;
 };
 
-function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToast, forceViewOnly = false }) {
+function CanvasBoard({ boardId, boardPassword, onUpdatePassword = () => {}, onBack, showToast, forceViewOnly = false }) {
   const [boardName, setBoardName] = useState('');
   const [cards, setCards] = useState([]);
   const cardsRef = useRef(cards);
@@ -1016,12 +1016,38 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
         if (!res.ok) throw new Error('Board not found');
         const data = await res.json();
 
+        const rawCards = (data.cards || []).map((c, i) => ({
+          ...c,
+          id: c.id || (c._id ? String(c._id) : `card_${i}_${Math.random().toString(36).substring(2, 7)}`)
+        }));
+
         setBoardName(data.name || 'Untitled Board');
         setBoardPreset(data.preset || (boardId.startsWith('sd_') ? 'system_design' : 'freestyle'));
-        setCards(data.cards || []);
+        setCards(rawCards);
         setConnections(data.connections || []);
         setDrawings(data.drawings || []);
-        setPan(data.pan || { x: 100, y: 100 });
+
+        if (rawCards.length > 0) {
+          const xs = rawCards.map(c => c.x || 0);
+          const ys = rawCards.map(c => c.y || 0);
+          const minX = Math.min(...xs);
+          const minY = Math.min(...ys);
+          const maxX = Math.max(...xs);
+          const maxY = Math.max(...ys);
+
+          if (!data.pan || (data.pan.x === 0 && data.pan.y === 0) || (data.pan.x === 100 && data.pan.y === 100 && minX < -500)) {
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            setPan({
+              x: window.innerWidth / 2 - centerX,
+              y: window.innerHeight / 2 - centerY
+            });
+          } else {
+            setPan(data.pan || { x: 100, y: 100 });
+          }
+        } else {
+          setPan(data.pan || { x: 100, y: 100 });
+        }
         setZoom(data.zoom || 1.0);
         setProtectionMode(data.protectionMode || 'none');
         setBoardCode(data.code || '');
@@ -3155,19 +3181,36 @@ function CanvasBoard({ boardId, boardPassword, onUpdatePassword, onBack, showToa
   const handleUnlockEditing = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/boards/${boardId}/verify`, {
+      let endpoint = boardId.startsWith('sd_')
+        ? `${API_BASE}/system-design-boards/${boardId}/verify`
+        : boardId.startsWith('fs_')
+        ? `${API_BASE}/freestyle-boards/${boardId}/verify`
+        : `${API_BASE}/boards/${boardId}/verify`;
+
+      let res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: unlockPassInput }),
       });
+      if (!res.ok) {
+        res = await fetch(`${API_BASE}/boards/${boardId}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: unlockPassInput }),
+        });
+      }
       if (!res.ok) throw new Error('Password verification failed');
       const data = await res.json();
       if (data.success) {
         showToast('Editing unlocked.');
         const passToUse = data.hashedPassword || unlockPassInput;
+        const unPrefixedId = boardId.replace(/^(fs_|sd_)/, '');
         localStorage.setItem(`dragg-board-pass-${boardId}`, passToUse);
+        localStorage.setItem(`dragg-board-pass-${unPrefixedId}`, passToUse);
         setLocalPassword(passToUse);
-        onUpdatePassword(passToUse);
+        if (typeof onUpdatePassword === 'function') {
+          onUpdatePassword(passToUse);
+        }
         setShowUnlockModal(false);
         setUnlockPassInput('');
       } else {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette, Compass, Type } from 'lucide-react';
+import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette, Compass, Type, Search } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -22,6 +22,17 @@ function Dashboard({ onSelectBoard, showToast }) {
   const [showImportHelpModal, setShowImportHelpModal] = useState(false);
   const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
   const [forceViewOnlyPending, setForceViewOnlyPending] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [hasSeenWhatsNew, setHasSeenWhatsNew] = useState(() => {
+    return localStorage.getItem('dragg_has_seen_whats_new') === 'true';
+  });
+
+  const handleCloseWhatsNew = () => {
+    localStorage.setItem('dragg_has_seen_whats_new', 'true');
+    setHasSeenWhatsNew(true);
+    setShowWhatsNewModal(false);
+  };
 
   // Keyboard control settings
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -82,7 +93,12 @@ function Dashboard({ onSelectBoard, showToast }) {
       const res = await fetch(`${API_BASE}/boards`);
       if (!res.ok) throw new Error('Failed to fetch boards');
       const data = await res.json();
-      setBoards(data);
+      const sorted = Array.isArray(data) ? data.sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+        const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+        return timeB - timeA;
+      }) : [];
+      setBoards(sorted);
     } catch (err) {
       console.error(err);
       showToast('Could not fetch boards. Check if backend is running!', 'error');
@@ -167,8 +183,10 @@ function Dashboard({ onSelectBoard, showToast }) {
       showToast("You don't have access to development feature", 'error');
       return;
     }
+    const unPrefixedId = board._id.replace(/^(fs_|sd_)/, '');
+    const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`) || localStorage.getItem(`dragg-board-pass-${unPrefixedId}`);
+
     if (board.protectionMode === 'full') {
-      const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`);
       if (savedHash) {
         try {
           const res = await fetch(`${API_BASE}/boards/${board._id}/verify`, {
@@ -179,7 +197,6 @@ function Dashboard({ onSelectBoard, showToast }) {
           if (res.ok) {
             const data = await res.json();
             if (data.success) {
-              // Successfully auto-verified saved hash!
               onSelectBoard(board._id, savedHash, false);
               return;
             }
@@ -187,20 +204,20 @@ function Dashboard({ onSelectBoard, showToast }) {
         } catch (err) {
           console.error('Error auto-verifying password:', err);
         }
-        // If verify fails, remove the invalid hash
         localStorage.removeItem(`dragg-board-pass-${board._id}`);
+        localStorage.removeItem(`dragg-board-pass-${unPrefixedId}`);
       }
       setBoardToUnlock(board);
       setUnlockPassword('');
     } else {
-      // Partial lock - pass the saved hash if we have one so they don't see View Only state
-      const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`);
+      // Partial lock - pass saved hash if available
       onSelectBoard(board._id, savedHash || '', false);
     }
   };
 
   const handleViewOnlyClick = (board) => {
-    const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`) || '';
+    const unPrefixedId = board._id.replace(/^(fs_|sd_)/, '');
+    const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`) || localStorage.getItem(`dragg-board-pass-${unPrefixedId}`) || '';
     if (board.protectionMode === 'full' && !savedHash) {
       setForceViewOnlyPending(true);
       setBoardToUnlock(board);
@@ -215,23 +232,37 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (!boardToUnlock) return;
 
     try {
-      const res = await fetch(`${API_BASE}/boards/${boardToUnlock._id}/verify`, {
+      let endpoint = boardToUnlock._id.startsWith('sd_')
+        ? `${API_BASE}/system-design-boards/${boardToUnlock._id}/verify`
+        : boardToUnlock._id.startsWith('fs_')
+        ? `${API_BASE}/freestyle-boards/${boardToUnlock._id}/verify`
+        : `${API_BASE}/boards/${boardToUnlock._id}/verify`;
+
+      let res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: unlockPassword }),
       });
+      if (!res.ok) {
+        res = await fetch(`${API_BASE}/boards/${boardToUnlock._id}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: unlockPassword }),
+        });
+      }
       if (!res.ok) throw new Error('Password verification failed');
       const data = await res.json();
       if (data.success) {
         showToast('Access granted.');
         const boardId = boardToUnlock._id;
+        const unPrefixedId = boardId.replace(/^(fs_|sd_)/, '');
         const passToUse = data.hashedPassword || unlockPassword;
-        // Save the hash to localStorage
         localStorage.setItem(`dragg-board-pass-${boardId}`, passToUse);
+        localStorage.setItem(`dragg-board-pass-${unPrefixedId}`, passToUse);
         setBoardToUnlock(null);
         setUnlockPassword('');
         onSelectBoard(boardId, passToUse, forceViewOnlyPending);
-        setForceViewOnlyPending(false); // reset
+        setForceViewOnlyPending(false);
       } else {
         showToast('Incorrect password.', 'error');
       }
@@ -569,321 +600,220 @@ function Dashboard({ onSelectBoard, showToast }) {
     });
   };
 
+  const filteredBoards = boards.filter((board) => {
+    const matchesSearch = (board.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+    if (activeFilter === 'freestyle') return board.preset === 'freestyle' || !board.preset;
+    if (activeFilter === 'system_design') return board.preset === 'system_design';
+    if (activeFilter === 'protected') return board.protectionMode === 'full' || board.protectionMode === 'partial';
+    return true;
+  });
+
   return (
     <div className="dashboard-container">
-      {/* Header Action Buttons in top-right corner */}
-      <div className="dashboard-header-actions" style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', gap: '0.6rem', zIndex: 10 }}>
-        <button 
-          className="whats-new-btn glass"
-          onClick={() => setShowWhatsNewModal(true)}
-          title="What's New in Dragg"
-          style={{
-            padding: '0.6rem 0.9rem',
-            borderRadius: '12px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            color: '#ffffff',
-            border: '1px solid rgba(168, 85, 247, 0.4)',
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))',
-            boxShadow: '0 4px 15px rgba(168, 85, 247, 0.25)',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <span className="whats-new-text" style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.3px' }}>What's New</span>
-          <span className="whats-new-badge" style={{ fontSize: '0.65rem', fontWeight: 800, background: '#a855f7', color: '#ffffff', padding: '1px 6px', borderRadius: '10px', marginLeft: '2px' }}>NEW</span>
-        </button>
+      {/* Background Ambient Glowing Orbs */}
+      <div className="dashboard-ambient-bg" />
 
-        <button 
-          className="dashboard-settings-btn glass"
-          onClick={() => setIsSettingsOpen(true)}
-          title="Control Settings"
-          style={{
-            padding: '0.6rem 0.9rem',
-            borderRadius: '12px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            color: 'var(--color-text-main)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            background: 'rgba(255, 255, 255, 0.03)'
-          }}
-        >
-          <Settings size={15} />
-          <span className="dashboard-settings-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Controls</span>
-        </button>
-      </div>
-
-      <header className="dashboard-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', marginBottom: '0.5rem' }}>
-          <img src="/favicon.svg" alt="Dragg Logo" style={{ width: '42px', height: '42px', filter: 'drop-shadow(0 0 12px rgba(99, 102, 241, 0.6))' }} />
-          <h1 className="dashboard-title" style={{ margin: 0 }}>dragg</h1>
+      {/* Top Navigation Header */}
+      <header className="dashboard-nav-header">
+        <div className="dashboard-brand" onClick={() => {}}>
+          <img src="/favicon.svg" alt="Dragg Logo" className="dashboard-logo-img" />
+          <div className="dashboard-brand-text">
+            <h1 className="dashboard-title">dragg</h1>
+            <span className="dashboard-subtitle-tag">FREE-FORM CANVAS</span>
+          </div>
         </div>
-        <p className="dashboard-subtitle">Create, design, and connect ideas on a free-form board</p>
-      </header>
 
-      {/* Creation/Import Actions Row */}
-      <div 
-        className="dashboard-actions-bar"
-        style={{
-          display: 'flex',
-          gap: '1rem',
-          marginBottom: '2.5rem',
-          width: '100%',
-          maxWidth: '1100px',
-          justifyContent: 'flex-start',
-          alignItems: 'center'
-        }}
-      >
-        <button 
-          className="btn btn-primary"
-          onClick={() => setIsModalOpen(true)}
-          style={{
-            background: 'var(--accent-indigo)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '10px',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.3)',
-            cursor: 'pointer',
-            border: 'none',
-            color: 'white'
-          }}
-        >
-          <Plus size={16} />
-          Create New Board
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <label 
-            className="glass-btn dashboard-action-btn"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.6rem 1rem',
-              borderRadius: '10px',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              background: 'rgba(255, 255, 255, 0.03)',
-              color: 'var(--color-text-main)'
-            }}
-            title="Import boards from structured file (.txt, .md, .json)"
-          >
-            <FileText size={16} color="var(--accent-cyan)" />
-            <span>Import Notes</span>
-            <span 
-              style={{
-                background: 'linear-gradient(135deg, #f43f5e, #ec4899)',
-                color: '#fff',
-                fontSize: '0.6rem',
-                fontWeight: 800,
-                padding: '0.12rem 0.4rem',
-                borderRadius: '4px',
-                letterSpacing: '0.5px',
-                textTransform: 'uppercase',
-                boxShadow: '0 0 8px rgba(244, 63, 94, 0.5)'
-              }}
+        <div className="dashboard-top-actions">
+          {!hasSeenWhatsNew && (
+            <button 
+              className="whats-new-btn glass"
+              onClick={() => setShowWhatsNewModal(true)}
+              title="What's New in Dragg"
             >
-              BETA
-            </span>
-            <input 
-              type="file" 
-              accept=".txt,.md,.json" 
-              onChange={handleImportNotesFile} 
-              style={{ display: 'none' }} 
-            />
-          </label>
+              <Sparkles size={15} />
+              <span className="whats-new-text">What's New</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setShowImportHelpModal(true)}
-            className="glass-btn"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              background: 'rgba(255, 255, 255, 0.03)',
-              color: 'var(--accent-cyan)',
-              cursor: 'pointer',
-              transition: 'transform 0.15s'
-            }}
-            title="View Supported Formats & JSON Template Guide"
+          <button 
+            className="dashboard-settings-btn glass"
+            onClick={() => setIsSettingsOpen(true)}
+            title="Control Settings"
           >
-            <Info size={16} />
+            <Settings size={15} />
+            <span className="dashboard-settings-text">Controls</span>
           </button>
         </div>
-      </div>
+      </header>
 
-      <div style={{ width: '100%', maxWidth: '1100px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '0.6rem' }}>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'white', margin: 0, fontFamily: 'var(--font-heading)' }}>Whiteboards</h2>
-        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{boards.length} total</span>
-      </div>
+      {/* Main Content Container */}
+      <div className="dashboard-content-body">
+        {/* Standalone Action Buttons Bar (Outside Navbar) */}
+        <div className="dashboard-standalone-actions">
+          <button 
+            className="btn btn-primary create-board-glow-btn large-action-btn"
+            onClick={() => setIsModalOpen(true)}
+          >
+            <Plus size={18} />
+            <span>Create New Board</span>
+          </button>
 
-      <div className="dashboard-grid-wrapper">
-        {loading ? (
-        <div style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>Loading boards...</div>
-      ) : (
-        <div className="dashboard-grid">
-          {boards.length === 0 ? (
-            <div 
-              style={{ 
-                gridColumn: '1 / -1', 
-                textAlign: 'center', 
-                padding: '4rem 2rem', 
-                color: 'var(--color-text-muted)', 
-                background: 'rgba(255, 255, 255, 0.01)', 
-                border: '1px dashed rgba(255, 255, 255, 0.1)', 
-                borderRadius: '16px',
-                width: '100%',
-                boxSizing: 'border-box'
-              }}
+          <div className="import-btn-group large-import-group">
+            <label 
+              className="glass-btn import-notes-glow-btn large-action-btn"
+              title="Import boards from structured text or markdown files (.txt, .md, .json)"
             >
-              No whiteboards found. Click "Create New Board" or "Import Notes" above to get started!
+              <FileText size={18} color="var(--accent-cyan)" />
+              <span>Import Notes</span>
+              <span className="beta-chip">BETA</span>
+              <input 
+                type="file" 
+                accept=".txt,.md,.json" 
+                onChange={handleImportNotesFile} 
+                style={{ display: 'none' }} 
+              />
+            </label>
+
+            <button
+              onClick={() => setShowImportHelpModal(true)}
+              className="glass-btn info-help-btn large-info-btn"
+              title="View Supported Formats & JSON Template Guide"
+            >
+              <Info size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Board Cards Grid */}
+        <div className="dashboard-grid-wrapper">
+          {loading ? (
+            <div className="dashboard-loading-state">
+              <div className="loading-spinner" />
+              <span>Fetching whiteboards...</span>
             </div>
           ) : (
-            boards.map((board) => {
-              const cardCount = board.cards?.length || 0;
-              const noteCount = board.cards?.filter(c => c.type === 'note').length || 0;
-              const imageCount = board.cards?.filter(c => c.type === 'image').length || 0;
-              const linkCount = board.connections?.length || 0;
-              const strokeCount = board.drawings?.length || 0;
-              const isSystemDesignProd = board.preset === 'system_design' && !isDevMode;
-
-              return (
-                <div 
-                  key={board._id} 
-                  className="board-card detailed-board-card glass"
-                  onClick={() => handleBoardClick(board)}
-                  title={isSystemDesignProd ? "You don't have access to development feature" : board.name}
-                  style={{
-                    cursor: isSystemDesignProd ? 'not-allowed' : 'pointer',
-                    opacity: isSystemDesignProd ? 0.75 : 1
-                  }}
-                >
-                  <div className="board-card-header-row">
-                    <span className="board-card-name-text" title={board.name}>
-                      {board.name}
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                      {board.preset === 'system_design' && (
-                        <span 
-                          style={{
-                            background: isDevMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                            border: isDevMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
-                            color: isDevMode ? '#a7f3d0' : '#fef08a',
-                            fontSize: '0.6rem',
-                            fontWeight: 700,
-                            padding: '2px 6px',
-                            borderRadius: '6px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.4px',
-                            whiteSpace: 'nowrap',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px'
-                          }}
-                        >
-                          {isDevMode ? 'DEV MODE' : '🚧 COMING SOON'}
-                        </span>
-                      )}
-                      {board.protectionMode === 'full' && (
-                        <Lock size={13} color="var(--accent-rose)" title="Fully Password Protected" />
-                      )}
-                      {board.protectionMode === 'partial' && (
-                        <Eye size={13} color="var(--accent-cyan)" title="Partially Protected (View Only)" />
-                      )}
-                    </div>
+            <div className="dashboard-grid">
+              {boards.length === 0 ? (
+                <div className="dashboard-empty-card">
+                  <div className="empty-icon-wrap">
+                    <Compass size={32} color="var(--accent-indigo)" />
                   </div>
-
-                  <div className="board-card-stats-grid">
-                    <div className="board-stat-chip" title={`${noteCount} Note Cards`}>
-                      <FileText size={11} color="var(--accent-indigo)" />
-                      <span>{noteCount} {noteCount === 1 ? 'Note' : 'Notes'}</span>
-                    </div>
-                    <div className="board-stat-chip" title={`${imageCount} Image Assets`}>
-                      <ImageIcon size={11} color="var(--accent-cyan)" />
-                      <span>{imageCount} {imageCount === 1 ? 'Image' : 'Images'}</span>
-                    </div>
-                    <div className="board-stat-chip" title={`${linkCount} Connection Paths`}>
-                      <Link2 size={11} color="var(--accent-emerald)" />
-                      <span>{linkCount} {linkCount === 1 ? 'Link' : 'Links'}</span>
-                    </div>
-                    {strokeCount > 0 && (
-                      <div className="board-stat-chip" title={`${strokeCount} Sketches`}>
-                        <Pencil size={11} color="var(--accent-amber)" />
-                        <span>{strokeCount} {strokeCount === 1 ? 'Sketch' : 'Sketches'}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="board-card-info-row">
-                    <div className="board-card-date" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Calendar size={12} />
-                      <span>{formatDate(board.updatedAt)}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      {(board.protectionMode === 'full' || board.protectionMode === 'partial') && (
-                        <button
-                          className="board-card-delete-btn-cyan"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewOnlyClick(board);
-                          }}
-                          title="Open in View Only Mode (Read Only)"
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--color-text-muted)',
-                            cursor: 'pointer',
-                            padding: '0.4rem',
-                            borderRadius: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s',
-                          }}
-                          onMouseEnter={(el) => {
-                            el.currentTarget.style.background = 'rgba(6, 182, 212, 0.15)';
-                            el.currentTarget.style.color = 'var(--accent-cyan)';
-                          }}
-                          onMouseLeave={(el) => {
-                            el.currentTarget.style.background = 'transparent';
-                            el.currentTarget.style.color = 'var(--color-text-muted)';
-                          }}
-                        >
-                          <Eye size={14} />
-                        </button>
-                      )}
-                      
-                      <button 
-                        className="board-card-delete-btn-red"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Stop card selection click
-                          setBoardToDelete(board);
-                        }}
-                        title="Delete Board"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
+                  <h3>No whiteboards found</h3>
+                  <p>Click "Create New Board" or "Import Notes" above to create your first canvas!</p>
                 </div>
-              );
-            })
+              ) : (
+                boards.map((board) => {
+                  const cardCount = board.cards?.length || 0;
+                  const noteCount = board.cards?.filter(c => c.type === 'note' || !c.type).length || 0;
+                  const imageCount = board.cards?.filter(c => c.type === 'image').length || 0;
+                  const linkCount = board.connections?.length || 0;
+                  const strokeCount = board.drawings?.length || 0;
+                  const isSystemDesignProd = board.preset === 'system_design' && !isDevMode;
+
+                  return (
+                    <div 
+                      key={board._id} 
+                      className={`board-card modern-glass-card ${board.preset === 'system_design' ? 'system-design-card' : 'freestyle-card'}`}
+                      onClick={() => handleBoardClick(board)}
+                      title={isSystemDesignProd ? "You don't have access to development feature" : board.name}
+                      style={{
+                        cursor: isSystemDesignProd ? 'not-allowed' : 'pointer',
+                        opacity: isSystemDesignProd ? 0.8 : 1
+                      }}
+                    >
+                      <div className="board-card-header-row">
+                        <div className="board-card-title-group">
+                          <span className="board-preset-dot" title={board.preset === 'system_design' ? 'System Design' : 'Freestyle'} />
+                          <h3 className="board-card-name-text" title={board.name}>
+                            {board.name}
+                          </h3>
+                        </div>
+
+                        <div className="board-card-badges">
+                          {board.preset === 'system_design' && (
+                            <span className={`preset-pill ${isDevMode ? 'dev' : 'coming'}`}>
+                              {isDevMode ? 'DEV MODE' : '🚧 COMING SOON'}
+                            </span>
+                          )}
+                          {board.protectionMode === 'full' && (
+                            <span className="protection-pill full" title="Fully Password Protected">
+                              <Lock size={11} />
+                              <span>Private</span>
+                            </span>
+                          )}
+                          {board.protectionMode === 'partial' && (
+                            <span className="protection-pill partial" title="Partially Protected (View Only)">
+                              <Eye size={11} />
+                              <span>View-Only</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stat Counters Grid */}
+                      <div className="board-card-stats-grid">
+                        <div className="board-stat-chip notes" title={`${noteCount} Note Cards`}>
+                          <FileText size={11} />
+                          <span>{noteCount} {noteCount === 1 ? 'Note' : 'Notes'}</span>
+                        </div>
+                        <div className="board-stat-chip images" title={`${imageCount} Images`}>
+                          <ImageIcon size={11} />
+                          <span>{imageCount} {imageCount === 1 ? 'Image' : 'Images'}</span>
+                        </div>
+                        <div className="board-stat-chip links" title={`${linkCount} Connection Links`}>
+                          <Link2 size={11} />
+                          <span>{linkCount} {linkCount === 1 ? 'Link' : 'Links'}</span>
+                        </div>
+                        {strokeCount > 0 && (
+                          <div className="board-stat-chip sketches" title={`${strokeCount} Sketches`}>
+                            <Pencil size={11} />
+                            <span>{strokeCount} {strokeCount === 1 ? 'Sketch' : 'Sketches'}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer Info Row */}
+                      <div className="board-card-footer-row">
+                        <div className="board-card-date">
+                          <Calendar size={12} />
+                          <span>{formatDate(board.updatedAt || board.createdAt)}</span>
+                        </div>
+
+                        <div className="board-card-actions">
+                          {(board.protectionMode === 'full' || board.protectionMode === 'partial') && (
+                            <button
+                              className="card-action-icon view-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewOnlyClick(board);
+                              }}
+                              title="Open in View Only Mode"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          )}
+                          
+                          <button 
+                            className="card-action-icon delete-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBoardToDelete(board);
+                              setDeletePassword('');
+                            }}
+                            title="Delete Board"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           )}
         </div>
-      )}
       </div>
 
       {/* Create Board Modal */}
@@ -1564,7 +1494,7 @@ Color: cyan`}
       {showWhatsNewModal && (
         <div 
           className="modal-overlay"
-          onClick={() => setShowWhatsNewModal(false)}
+          onClick={handleCloseWhatsNew}
           style={{
             position: 'fixed',
             inset: 0,
@@ -1578,22 +1508,24 @@ Color: cyan`}
           }}
         >
           <div 
-            className="modal-container glass"
+            className="modal-container whats-new-modal-container glass"
             onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '650px',
-              width: '100%',
+              width: '94vw',
               maxHeight: '85vh',
+              maxHeight: '85dvh',
               overflowY: 'auto',
               background: 'rgba(15, 15, 25, 0.95)',
               border: '1px solid rgba(168, 85, 247, 0.35)',
               borderRadius: '16px',
-              padding: '1.8rem',
+              padding: '1.4rem 1.2rem',
               boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.25)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1.2rem',
-              color: '#ffffff'
+              gap: '1rem',
+              color: '#ffffff',
+              boxSizing: 'border-box'
             }}
           >
             {/* Modal Header */}
@@ -1609,7 +1541,7 @@ Color: cyan`}
                 </div>
               </div>
               <button
-                onClick={() => setShowWhatsNewModal(false)}
+                onClick={handleCloseWhatsNew}
                 style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px' }}
               >
                 <X size={20} />
@@ -1697,7 +1629,7 @@ Color: cyan`}
             {/* Modal Footer */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.6rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
               <button
-                onClick={() => setShowWhatsNewModal(false)}
+                onClick={handleCloseWhatsNew}
                 className="btn btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #6366f1, #a855f7)',
@@ -1708,7 +1640,6 @@ Color: cyan`}
                   borderRadius: '10px',
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
                 }}
               >
                 Explore Features
