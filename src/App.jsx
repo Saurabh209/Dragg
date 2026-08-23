@@ -7,6 +7,15 @@ import DevTool from './components/shared/DevTool';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export const checkIsDevMode = () => {
+  if (typeof window === 'undefined') return false;
+  const isUnlocked = localStorage.getItem('dragg_force_dev_unlocked') === 'true';
+  if (isUnlocked) return true;
+  const isSimulatedProd = localStorage.getItem('dragg_simulated_prod') === 'true';
+  if (isSimulatedProd) return false;
+  return import.meta.env.DEV;
+};
+
 function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showToast }) {
   const [boardPreset, setBoardPreset] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,21 +33,14 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
     }
 
     setIsLoading(true);
-    fetch(`${API_BASE}/system-design-boards/${boardId}`)
-      .then((res) => {
-        if (!res.ok) return fetch(`${API_BASE}/boards/${boardId}`);
-        return res;
-      })
+    fetch(`${API_BASE}/boards/${boardId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.preset === 'system_design') {
-          setBoardPreset('system_design');
-        } else {
-          setBoardPreset(data.preset || 'freestyle');
-        }
+        setBoardPreset(data.preset || 'freestyle');
         setIsLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Failed to resolve board preset', err);
         setBoardPreset('freestyle');
         setIsLoading(false);
       });
@@ -56,7 +58,8 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
   }
 
   if (boardPreset === 'system_design') {
-    if (!import.meta.env.DEV) {
+    const isDevMode = checkIsDevMode();
+    if (!isDevMode) {
       showToast("You don't have access to development feature", 'error');
       onBack();
       return null;
@@ -80,7 +83,43 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [boardPassword, setBoardPassword] = useState('');
   const [forceViewOnly, setForceViewOnly] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showDevAuthModal, setShowDevAuthModal] = useState(false);
+  const [devPasswordInput, setDevPasswordInput] = useState('');
+  const [isDevUnlocked, setIsDevUnlocked] = useState(() => localStorage.getItem('dragg_force_dev_unlocked') === 'true');
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        setShowDevAuthModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleDevAuthSubmit = (e) => {
+    e.preventDefault();
+    if (isDevUnlocked) {
+      localStorage.removeItem('dragg_force_dev_unlocked');
+      setIsDevUnlocked(false);
+      setShowDevAuthModal(false);
+      window.dispatchEvent(new Event('dragg-env-change'));
+      showToast('Dev Master Mode locked.', 'info');
+      return;
+    }
+
+    if (devPasswordInput === 'iameldenlord') {
+      localStorage.setItem('dragg_force_dev_unlocked', 'true');
+      setIsDevUnlocked(true);
+      setShowDevAuthModal(false);
+      setDevPasswordInput('');
+      window.dispatchEvent(new Event('dragg-env-change'));
+      showToast('🔥 Dev Master Mode Unlocked! Full System Design access granted.', 'success');
+    } else {
+      showToast('Incorrect secret passcode!', 'error');
+    }
+  };
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -208,6 +247,102 @@ function App() {
           }} 
           showToast={showToast} 
         />
+      )}
+
+      {/* Secret Dev Mode Unlock Modal (Ctrl + Shift + D) */}
+      {showDevAuthModal && (
+        <div 
+          className="modal-overlay"
+          onClick={() => setShowDevAuthModal(false)}
+          style={{ zIndex: 999999 }}
+        >
+          <div 
+            className="modal-content glass"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '420px',
+              maxWidth: '90%',
+              background: 'rgba(14, 14, 22, 0.96)',
+              backdropFilter: 'blur(16px)',
+              border: isDevUnlocked ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(99, 102, 241, 0.4)',
+              borderRadius: '16px',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>{isDevUnlocked ? '🔓' : '🔑'}</span>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', fontWeight: 700 }}>
+                  {isDevUnlocked ? 'Dev Master Mode Unlocked' : 'Enter Dev Passcode'}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowDevAuthModal(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleDevAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {!isDevUnlocked ? (
+                <div>
+                  <p style={{ margin: '0 0 0.8rem 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                    Enter secret passcode to force unlock Development Mode & System Design features in Production environment.
+                  </p>
+                  <input
+                    type="password"
+                    autoFocus
+                    placeholder="Enter secret passcode..."
+                    value={devPasswordInput}
+                    onChange={(e) => setDevPasswordInput(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.8rem',
+                      background: 'rgba(0,0,0,0.5)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#fef08a' }}>
+                  Dev Master Mode is currently active! You have full access to all developer features and System Design whiteboards.
+                </p>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDevAuthModal(false)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{
+                    fontSize: '0.8rem',
+                    padding: '0.4rem 1rem',
+                    background: isDevUnlocked ? 'rgba(239, 68, 68, 0.8)' : 'var(--accent-indigo)'
+                  }}
+                >
+                  {isDevUnlocked ? 'Relock Dev Mode' : 'Unlock Access'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Toast Notification Layer */}

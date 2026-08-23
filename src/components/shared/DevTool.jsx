@@ -27,6 +27,18 @@ export default function DevTool() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [activeTab, setActiveTab] = useState('features');
 
+  const [simulatedProd, setSimulatedProd] = useState(() => localStorage.getItem('dragg_simulated_prod') === 'true');
+
+  const toggleSimulatedProd = (val) => {
+    setSimulatedProd(val);
+    if (val) {
+      localStorage.setItem('dragg_simulated_prod', 'true');
+    } else {
+      localStorage.removeItem('dragg_simulated_prod');
+    }
+    window.dispatchEvent(new Event('dragg-env-change'));
+  };
+
   const [outlineEnabled, setOutlineEnabled] = useState(false);
   const [outlineColor, setOutlineColor] = useState('rgba(56, 189, 248, 0.6)');
   const [hoverInspectorEnabled, setHoverInspectorEnabled] = useState(false);
@@ -634,6 +646,21 @@ export default function DevTool() {
               <div className="dev-tool-body">
                 {activeTab === 'features' && (
                   <div className="dev-tool-section">
+                    <div className="dev-tool-option" style={{ border: '1px solid rgba(245, 158, 11, 0.4)', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '8px', padding: '10px' }}>
+                      <label className="dev-tool-option-label">
+                        <input 
+                          type="checkbox"
+                          className="dev-tool-checkbox"
+                          checked={simulatedProd}
+                          onChange={(e) => toggleSimulatedProd(e.target.checked)}
+                        />
+                        <div className="dev-tool-option-info">
+                          <span className="dev-tool-option-name" style={{ color: '#fef08a', fontWeight: 700 }}>🚀 Simulate Production Mode</span>
+                          <span className="dev-tool-option-desc">Toggle locally to test Production user access restrictions & hover prompts</span>
+                        </div>
+                      </label>
+                    </div>
+
                     <div className="dev-tool-section-title">Layout & Inspection Tools</div>
 
                     <div className="dev-tool-option">

@@ -148,8 +148,22 @@ function Dashboard({ onSelectBoard, showToast }) {
     }
   };
 
+  const [isDevUnlocked, setIsDevUnlocked] = useState(() => localStorage.getItem('dragg_force_dev_unlocked') === 'true');
+  const [isSimulatedProd, setIsSimulatedProd] = useState(() => localStorage.getItem('dragg_simulated_prod') === 'true');
+
+  useEffect(() => {
+    const handleEnvChange = () => {
+      setIsDevUnlocked(localStorage.getItem('dragg_force_dev_unlocked') === 'true');
+      setIsSimulatedProd(localStorage.getItem('dragg_simulated_prod') === 'true');
+    };
+    window.addEventListener('dragg-env-change', handleEnvChange);
+    return () => window.removeEventListener('dragg-env-change', handleEnvChange);
+  }, []);
+
+  const isDevMode = isDevUnlocked || (import.meta.env.DEV && !isSimulatedProd);
+
   const handleBoardClick = async (board) => {
-    if (board.preset === 'system_design' && !import.meta.env.DEV) {
+    if (board.preset === 'system_design' && !isDevMode) {
       showToast("You don't have access to development feature", 'error');
       return;
     }
@@ -744,7 +758,7 @@ function Dashboard({ onSelectBoard, showToast }) {
               const imageCount = board.cards?.filter(c => c.type === 'image').length || 0;
               const linkCount = board.connections?.length || 0;
               const strokeCount = board.drawings?.length || 0;
-              const isSystemDesignProd = board.preset === 'system_design' && !import.meta.env.DEV;
+              const isSystemDesignProd = board.preset === 'system_design' && !isDevMode;
 
               return (
                 <div 
@@ -765,18 +779,22 @@ function Dashboard({ onSelectBoard, showToast }) {
                       {board.preset === 'system_design' && (
                         <span 
                           style={{
-                            background: import.meta.env.DEV ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                            border: import.meta.env.DEV ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
-                            color: import.meta.env.DEV ? '#a7f3d0' : '#fef08a',
-                            fontSize: '0.62rem',
+                            background: isDevMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                            border: isDevMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                            color: isDevMode ? '#a7f3d0' : '#fef08a',
+                            fontSize: '0.6rem',
                             fontWeight: 700,
-                            padding: '2px 7px',
+                            padding: '2px 6px',
                             borderRadius: '6px',
                             textTransform: 'uppercase',
-                            letterSpacing: '0.5px'
+                            letterSpacing: '0.4px',
+                            whiteSpace: 'nowrap',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
                           }}
                         >
-                          {import.meta.env.DEV ? 'DEV MODE' : '🚧 UNDER DEVELOPMENT'}
+                          {isDevMode ? 'DEV MODE' : '🚧 COMING SOON'}
                         </span>
                       )}
                       {board.protectionMode === 'full' && (
