@@ -567,8 +567,217 @@ h6 {
   cursor: default;
 }
 
+/* Card & Group Container Hover Highlight */
+.card-wrapper {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease, filter 0.3s ease;
+}
+
+.card-wrapper:hover {
+  border-color: rgba(99, 102, 241, 0.85) !important;
+  box-shadow: 0 0 22px rgba(99, 102, 241, 0.45), 0 4px 18px rgba(0, 0, 0, 0.5) !important;
+}
+
+.group-container {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.group-container:hover {
+  border-color: rgba(99, 102, 241, 0.75) !important;
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.3) !important;
+}
+
+.conn-pill-wrapper {
+  pointer-events: auto !important;
+  padding: 6px;
+}
+
+/* Connection Node Hover Pill Group */
+.conn-node-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(0.9) translateY(2px);
+  white-space: nowrap;
+}
+
+/* Smooth Connection Line Hover Transition */
+.conn-line-hover-overlay {
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.connection-group:hover .conn-line-hover-overlay {
+  opacity: 1 !important;
+}
+
+.connection-group.is-dimmed,
+.connection-group.is-dimmed * {
+  pointer-events: none !important;
+}
+
+.connection-group.is-dimmed .conn-line-hover-overlay,
+.connection-group.is-dimmed:hover .conn-line-hover-overlay {
+  opacity: 0 !important;
+}
+
+.connection-group:hover ~ .connection-pills-overlay-layer .conn-node-pill-group,
+.connection-group:hover .conn-node-pill-group,
+.connection-group.is-editing .conn-node-pill-group,
+.conn-pill-wrapper:hover .conn-node-pill-group,
+.conn-pill-wrapper.is-hovered .conn-node-pill-group,
+.conn-pill-wrapper.is-editing .conn-node-pill-group,
+.conn-node-pill-group.hovered,
+.conn-node-pill-group.editing,
+.conn-node-pill-group:focus-within {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1) translateY(0) !important;
+}
+
+/* Label/ID Pill Button */
+.conn-label-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  padding: 2px 7px;
+  color: #f1f5f9;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 20px;
+  box-sizing: border-box;
+}
+
+.conn-label-pill:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.35);
+}
+
+.conn-label-pill.editing {
+  border-color: #6366f1;
+  background: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.55);
+  padding: 2px 9px;
+}
+
+.conn-pill-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  width: 72px;
+  padding: 0;
+  animation: connPillInputExpand 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.pill-text {
+  display: inline-block;
+  white-space: nowrap;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: connPillTextCollapse 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes connPillInputExpand {
+  from {
+    width: 25px;
+    opacity: 0.2;
+    transform: scale(0.95);
+  }
+  to {
+    width: 72px;
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes connPillTextCollapse {
+  from {
+    opacity: 0.2;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Circular Icon Action Buttons */
+.conn-circle-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: connBtnFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+@keyframes connBtnFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.conn-circle-btn:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.08);
+}
+
+.conn-circle-btn.delete:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: #f43f5e;
+  color: #fecdd3;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+}
+
+.conn-circle-btn.highlight:hover {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: #0ea5e9;
+  color: #bae6fd;
+  box-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
+}
+
 .card-wrapper.selected {
   z-index: 20;
+}
+
+.card-wrapper.dimmed {
+  pointer-events: none !important;
+}
+
+.card-wrapper.dimmed:hover {
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .card-content-container {
@@ -2502,10 +2711,19 @@ h6 {
   color: #ffffff;
 }
 
-.context-menu-item.danger:hover {
-  background: rgba(244, 63, 94, 0.2);
-  border-color: rgba(244, 63, 94, 0.35);
+.context-menu-item.danger {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: 8px;
   color: #fecdd3;
+  font-weight: 600;
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(244, 63, 94, 0.3);
+  border-color: rgba(244, 63, 94, 0.55);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.3);
 }
 
 .context-shortcut {
@@ -3085,7 +3303,7 @@ h6 {
   background: rgba(255, 255, 255, 0.02);
   border: 1.5px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  padding: 1.2rem;
+  padding: 1.6rem 1rem 1.2rem;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -3160,12 +3378,15 @@ h6 {
   right: 8px;
   background: linear-gradient(135deg, var(--accent-amber), #d97706);
   color: #000;
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   font-weight: 800;
-  padding: 0.12rem 0.35rem;
-  border-radius: 4px;
-  letter-spacing: 0.3px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  z-index: 2;
 }
 
 /* Protection Mode Button Group Styles */

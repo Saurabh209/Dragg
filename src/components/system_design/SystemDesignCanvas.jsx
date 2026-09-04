@@ -8,14 +8,10 @@ export default function SystemDesignCanvas({ boardId, onBack, showToast }) {
   const [board, setBoard] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/system-design-boards/${boardId}`)
-      .then((res) => {
-        if (!res.ok) return fetch(`${API_BASE}/boards/${boardId}`);
-        return res;
-      })
+    fetch(`${API_BASE}/board/${boardId}`)
       .then((res) => res.json())
       .then((data) => setBoard(data))
-      .catch((err) => console.error('Failed to load system design board', err));
+      .catch((err) => console.error('Failed to load system design canvas', err));
   }, [boardId]);
 
   return (

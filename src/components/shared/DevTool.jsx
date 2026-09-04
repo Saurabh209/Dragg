@@ -19,18 +19,19 @@ import {
   Search
 } from 'lucide-react';
 import './DevTool.css';
+import { getDraggItem, setDraggItem, removeDraggItem } from '../../utils/draggStorage';
 
 export default function DevTool() {
   const [isDevActive, setIsDevActive] = useState(() => {
-    const isUnlocked = typeof window !== 'undefined' && localStorage.getItem('dragg_force_dev_unlocked') === 'true';
-    const isSimulatedProd = typeof window !== 'undefined' && localStorage.getItem('dragg_simulated_prod') === 'true';
+    const isUnlocked = typeof window !== 'undefined' && (getDraggItem('forceDevUnlocked', false) === true || getDraggItem('forceDevUnlocked') === 'true');
+    const isSimulatedProd = typeof window !== 'undefined' && (getDraggItem('simulatedProd', false) === true || getDraggItem('simulatedProd') === 'true');
     return isUnlocked || (import.meta.env.DEV && !isSimulatedProd);
   });
 
   useEffect(() => {
     const handleEnvChange = () => {
-      const isUnlocked = typeof window !== 'undefined' && localStorage.getItem('dragg_force_dev_unlocked') === 'true';
-      const isSimulatedProd = typeof window !== 'undefined' && localStorage.getItem('dragg_simulated_prod') === 'true';
+      const isUnlocked = typeof window !== 'undefined' && (getDraggItem('forceDevUnlocked', false) === true || getDraggItem('forceDevUnlocked') === 'true');
+      const isSimulatedProd = typeof window !== 'undefined' && (getDraggItem('simulatedProd', false) === true || getDraggItem('simulatedProd') === 'true');
       setIsDevActive(isUnlocked || (import.meta.env.DEV && !isSimulatedProd));
     };
     window.addEventListener('dragg-env-change', handleEnvChange);
@@ -43,14 +44,14 @@ export default function DevTool() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [activeTab, setActiveTab] = useState('features');
 
-  const [simulatedProd, setSimulatedProd] = useState(() => localStorage.getItem('dragg_simulated_prod') === 'true');
+  const [simulatedProd, setSimulatedProd] = useState(() => getDraggItem('simulatedProd', false) === true || getDraggItem('simulatedProd') === 'true');
 
   const toggleSimulatedProd = (val) => {
     setSimulatedProd(val);
     if (val) {
-      localStorage.setItem('dragg_simulated_prod', 'true');
+      setDraggItem('simulatedProd', true);
     } else {
-      localStorage.removeItem('dragg_simulated_prod');
+      removeDraggItem('simulatedProd');
     }
     window.dispatchEvent(new Event('dragg-env-change'));
   };

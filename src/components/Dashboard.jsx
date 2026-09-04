@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette, Compass, Type, Search } from 'lucide-react';
+import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette, Compass, Type, Search, Clipboard } from 'lucide-react';
+import DraggClipboardSlider from './shared/DraggClipboardSlider';
+import { getDraggItem, setDraggItem, getDraggBoardPass, setDraggBoardPass, removeDraggBoardPass } from '../utils/draggStorage';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL;
 
 function Dashboard({ onSelectBoard, showToast }) {
   const [boards, setBoards] = useState([]);
@@ -25,11 +27,11 @@ function Dashboard({ onSelectBoard, showToast }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [hasSeenWhatsNew, setHasSeenWhatsNew] = useState(() => {
-    return localStorage.getItem('dragg_has_seen_whats_new') === 'true';
+    return getDraggItem('hasSeenWhatsNew', false) === true;
   });
 
   const handleCloseWhatsNew = () => {
-    localStorage.setItem('dragg_has_seen_whats_new', 'true');
+    setDraggItem('hasSeenWhatsNew', true);
     setHasSeenWhatsNew(true);
     setShowWhatsNewModal(false);
   };
@@ -37,8 +39,8 @@ function Dashboard({ onSelectBoard, showToast }) {
   // Keyboard control settings
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [keybindings, setKeybindings] = useState(() => {
-    const saved = localStorage.getItem('dragg-keybindings');
-    return saved ? JSON.parse(saved) : {
+    const saved = getDraggItem('keybindings', null);
+    return saved ? saved : {
       panUp: { key: 'w', code: 'KeyW', label: 'Pan Up' },
       panDown: { key: 's', code: 'KeyS', label: 'Pan Down' },
       panLeft: { key: 'a', code: 'KeyA', label: 'Pan Left' },
@@ -78,7 +80,7 @@ function Dashboard({ onSelectBoard, showToast }) {
         }
       };
       setKeybindings(newKeybindings);
-      localStorage.setItem('dragg-keybindings', JSON.stringify(newKeybindings));
+      setDraggItem('keybindings', newKeybindings);
       setActiveBindingKey(null);
       showToast(`Bound "${keybindings[activeBindingKey].label}" to "${e.key.toUpperCase()}"`);
     };
@@ -90,8 +92,8 @@ function Dashboard({ onSelectBoard, showToast }) {
   const fetchBoards = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/boards`);
-      if (!res.ok) throw new Error('Failed to fetch boards');
+      const res = await fetch(`${API_BASE}/board`);
+      if (!res.ok) throw new Error('Failed to fetch canvases');
       const data = await res.json();
       const sorted = Array.isArray(data) ? data.sort((a, b) => {
         const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
@@ -101,7 +103,7 @@ function Dashboard({ onSelectBoard, showToast }) {
       setBoards(sorted);
     } catch (err) {
       console.error(err);
-      showToast('Could not fetch boards. Check if backend is running!', 'error');
+      showToast('Could not fetch canvases. Check if backend is running!', 'error');
     } finally {
       setLoading(false);
     }
@@ -112,9 +114,7 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (!newBoardName.trim()) return;
 
     try {
-      const primaryEndpoint = newBoardPreset === 'system_design' 
-        ? `${API_BASE}/system-design-boards`
-        : `${API_BASE}/freestyle-boards`;
+      const primaryEndpoint = `${API_BASE}/board`;
 
       const payload = { 
         name: newBoardName.trim(),
@@ -123,32 +123,19 @@ function Dashboard({ onSelectBoard, showToast }) {
         preset: newBoardPreset
       };
 
-      let res;
-      try {
-        res = await fetch(primaryEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch (primaryErr) {
-        console.warn('Primary creation endpoint failed, trying fallback /api/boards', primaryErr);
-      }
+      const res = await fetch(primaryEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-      if (!res || !res.ok) {
-        res = await fetch(`${API_BASE}/boards`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      if (!res || !res.ok) throw new Error('Failed to create board');
+      if (!res.ok) throw new Error('Failed to create canvas');
       const data = await res.json();
-      showToast(`Board "${data.name}" created!`);
+      showToast(`Canvas "${data.name}" created!`);
       
       const p = data.hashedPassword || newBoardPassword;
       if (p) {
-        localStorage.setItem(`dragg-board-pass-${data._id}`, p);
+        setDraggBoardPass(data._id, p);
       }
       
       setNewBoardName('');
@@ -160,17 +147,17 @@ function Dashboard({ onSelectBoard, showToast }) {
       onSelectBoard(data._id, p || '', false);
     } catch (err) {
       console.error(err);
-      showToast('Failed to create board. Check backend server connection on port 5000!', 'error');
+      showToast('Failed to create canvas. Check backend server connection on port 5000!', 'error');
     }
   };
 
-  const [isDevUnlocked, setIsDevUnlocked] = useState(() => localStorage.getItem('dragg_force_dev_unlocked') === 'true');
-  const [isSimulatedProd, setIsSimulatedProd] = useState(() => localStorage.getItem('dragg_simulated_prod') === 'true');
+  const [isDevUnlocked, setIsDevUnlocked] = useState(() => getDraggItem('forceDevUnlocked', false) === true || getDraggItem('forceDevUnlocked') === 'true');
+  const [isSimulatedProd, setIsSimulatedProd] = useState(() => getDraggItem('simulatedProd', false) === true || getDraggItem('simulatedProd') === 'true');
 
   useEffect(() => {
     const handleEnvChange = () => {
-      setIsDevUnlocked(localStorage.getItem('dragg_force_dev_unlocked') === 'true');
-      setIsSimulatedProd(localStorage.getItem('dragg_simulated_prod') === 'true');
+      setIsDevUnlocked(getDraggItem('forceDevUnlocked', false) === true || getDraggItem('forceDevUnlocked') === 'true');
+      setIsSimulatedProd(getDraggItem('simulatedProd', false) === true || getDraggItem('simulatedProd') === 'true');
     };
     window.addEventListener('dragg-env-change', handleEnvChange);
     return () => window.removeEventListener('dragg-env-change', handleEnvChange);
@@ -183,13 +170,12 @@ function Dashboard({ onSelectBoard, showToast }) {
       showToast("You don't have access to development feature", 'error');
       return;
     }
-    const unPrefixedId = board._id.replace(/^(fs_|sd_)/, '');
-    const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`) || localStorage.getItem(`dragg-board-pass-${unPrefixedId}`);
+    const savedHash = getDraggBoardPass(board._id);
 
     if (board.protectionMode === 'full') {
       if (savedHash) {
         try {
-          const res = await fetch(`${API_BASE}/boards/${board._id}/verify`, {
+          const res = await fetch(`${API_BASE}/board/${board._id}/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: savedHash }),
@@ -204,8 +190,7 @@ function Dashboard({ onSelectBoard, showToast }) {
         } catch (err) {
           console.error('Error auto-verifying password:', err);
         }
-        localStorage.removeItem(`dragg-board-pass-${board._id}`);
-        localStorage.removeItem(`dragg-board-pass-${unPrefixedId}`);
+        removeDraggBoardPass(board._id);
       }
       setBoardToUnlock(board);
       setUnlockPassword('');
@@ -216,8 +201,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   };
 
   const handleViewOnlyClick = (board) => {
-    const unPrefixedId = board._id.replace(/^(fs_|sd_)/, '');
-    const savedHash = localStorage.getItem(`dragg-board-pass-${board._id}`) || localStorage.getItem(`dragg-board-pass-${unPrefixedId}`) || '';
+    const savedHash = getDraggBoardPass(board._id) || '';
     if (board.protectionMode === 'full' && !savedHash) {
       setForceViewOnlyPending(true);
       setBoardToUnlock(board);
@@ -232,33 +216,20 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (!boardToUnlock) return;
 
     try {
-      let endpoint = boardToUnlock._id.startsWith('sd_')
-        ? `${API_BASE}/system-design-boards/${boardToUnlock._id}/verify`
-        : boardToUnlock._id.startsWith('fs_')
-        ? `${API_BASE}/freestyle-boards/${boardToUnlock._id}/verify`
-        : `${API_BASE}/boards/${boardToUnlock._id}/verify`;
+      const endpoint = `${API_BASE}/board/${boardToUnlock._id}/verify`;
 
-      let res = await fetch(endpoint, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: unlockPassword }),
       });
-      if (!res.ok) {
-        res = await fetch(`${API_BASE}/boards/${boardToUnlock._id}/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: unlockPassword }),
-        });
-      }
       if (!res.ok) throw new Error('Password verification failed');
       const data = await res.json();
       if (data.success) {
         showToast('Access granted.');
         const boardId = boardToUnlock._id;
-        const unPrefixedId = boardId.replace(/^(fs_|sd_)/, '');
         const passToUse = data.hashedPassword || unlockPassword;
-        localStorage.setItem(`dragg-board-pass-${boardId}`, passToUse);
-        localStorage.setItem(`dragg-board-pass-${unPrefixedId}`, passToUse);
+        setDraggBoardPass(boardId, passToUse);
         setBoardToUnlock(null);
         setUnlockPassword('');
         onSelectBoard(boardId, passToUse, forceViewOnlyPending);
@@ -274,7 +245,7 @@ function Dashboard({ onSelectBoard, showToast }) {
 
   const handleDeleteBoard = async () => {
     if (!boardToDelete) return;
-    const { _id, id: boardIdAlt, name, protectionMode, preset } = boardToDelete;
+    const { _id, id: boardIdAlt, name, protectionMode } = boardToDelete;
     const id = _id || boardIdAlt;
 
     try {
@@ -283,33 +254,19 @@ function Dashboard({ onSelectBoard, showToast }) {
         headers['x-board-password'] = deletePassword;
       }
 
-      let endpoint = `${API_BASE}/boards/${id}`;
-      if (preset === 'system_design') {
-        endpoint = `${API_BASE}/system-design-boards/${id}`;
-      } else if (preset === 'freestyle') {
-        endpoint = `${API_BASE}/freestyle-boards/${id}`;
-      }
-
-      let res = await fetch(endpoint, { 
+      const res = await fetch(`${API_BASE}/board/${id}`, { 
         method: 'DELETE',
         headers
       });
 
-      if (!res.ok && endpoint !== `${API_BASE}/boards/${id}`) {
-        res = await fetch(`${API_BASE}/boards/${id}`, {
-          method: 'DELETE',
-          headers
-        });
-      }
-      
       if (res.status === 401) {
         showToast('Incorrect password. Authorization failed.', 'error');
         return;
       }
-      if (!res.ok) throw new Error('Failed to delete board');
+      if (!res.ok) throw new Error('Failed to delete canvas');
       
       showToast(`Board "${name}" deleted.`);
-      localStorage.removeItem(`dragg-board-pass-${id}`); // Clean up password hash
+      removeDraggBoardPass(id); // Clean up password hash
       setBoards((prev) => prev.filter((b) => (b._id || b.id) !== id));
       setBoardToDelete(null);
       setDeletePassword('');
@@ -547,30 +504,17 @@ function Dashboard({ onSelectBoard, showToast }) {
             zoom: pb.zoom || 0.85
           };
 
-          let createRes;
-          try {
-            createRes = await fetch(`${API_BASE}/freestyle-boards`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-          } catch (err) {
-            console.warn('Freestyle import endpoint failed, falling back to /api/boards', err);
-          }
+          const createRes = await fetch(`${API_BASE}/board`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
 
-          if (!createRes || !createRes.ok) {
-            createRes = await fetch(`${API_BASE}/boards`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-          }
-
-          if (!createRes || !createRes.ok) throw new Error('Failed to create board during import');
+          if (!createRes.ok) throw new Error('Failed to create canvas during import');
           const data = await createRes.json();
 
           if (pb.cards && pb.cards.length > 0) {
-            await fetch(`${API_BASE}/freestyle-boards/${data._id}`, {
+            await fetch(`${API_BASE}/board/${data._id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ cards: pb.cards, connections: pb.connections || [] }),
@@ -1144,7 +1088,7 @@ function Dashboard({ onSelectBoard, showToast }) {
                     eraserMode: { key: 'e', code: 'KeyE', label: 'Eraser Mode' },
                   };
                   setKeybindings(defaults);
-                  localStorage.setItem('dragg-keybindings', JSON.stringify(defaults));
+                  setDraggItem('keybindings', defaults);
                   showToast('Restored default controls.', 'info');
                 }}
                 style={{ marginRight: 'auto', background: 'rgba(244, 63, 94, 0.05)', color: '#fecdd3', border: '1px solid rgba(244, 63, 94, 0.2)' }}

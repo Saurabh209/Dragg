@@ -15,9 +15,14 @@ function GroupContainer({
     opacity: 0.1,
     filter: 'grayscale(90%) blur(0.5px)',
     pointerEvents: 'none',
-    transition: 'opacity 0.8s ease, filter 0.8s ease',
+    transitionProperty: 'opacity, filter',
+    transitionDuration: '0.8s',
+    transitionTimingFunction: 'ease',
+    transitionDelay: '0ms'
   } : {
-    transition: 'opacity 0.8s ease, filter 0.8s ease',
+    transitionProperty: 'opacity, filter',
+    transitionDuration: '0.8s',
+    transitionTimingFunction: 'ease',
     transitionDelay: highlightDelay ? `${highlightDelay}ms` : '0ms'
   };
 

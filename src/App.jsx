@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
-import CanvasBoard from './components/shared/CanvasBoard';
 import FreestyleCanvas from './components/freestyle/FreestyleCanvas';
 import SystemDesignCanvas from './components/system_design/SystemDesignCanvas';
 import DevTool from './components/shared/DevTool';
+import { getDraggItem, setDraggItem, removeDraggItem } from './utils/draggStorage';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const checkIsDevMode = () => {
   if (typeof window === 'undefined') return false;
-  const isUnlocked = localStorage.getItem('dragg_force_dev_unlocked') === 'true';
+  const isUnlocked = getDraggItem('forceDevUnlocked', false) === true || getDraggItem('forceDevUnlocked') === 'true';
   if (isUnlocked) return true;
-  const isSimulatedProd = localStorage.getItem('dragg_simulated_prod') === 'true';
+  const isSimulatedProd = getDraggItem('simulatedProd', false) === true || getDraggItem('simulatedProd') === 'true';
   if (isSimulatedProd) return false;
   return import.meta.env.DEV;
 };
@@ -33,7 +33,7 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
     }
 
     setIsLoading(true);
-    fetch(`${API_BASE}/boards/${boardId}`)
+    fetch(`${API_BASE}/board/${boardId}`)
       .then((res) => res.json())
       .then((data) => {
         setBoardPreset(data.preset || 'freestyle');
@@ -51,7 +51,7 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
       <div style={{ width: '100vw', height: '100vh', background: '#0a0a0c', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f8fafc', fontFamily: 'sans-serif' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Loading Board...</span>
+          <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Loading Boards...</span>
         </div>
       </div>
     );
@@ -68,7 +68,7 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
   }
 
   return (
-    <CanvasBoard 
+    <FreestyleCanvas 
       boardId={boardId} 
       boardPassword={boardPassword}
       forceViewOnly={forceViewOnly}
@@ -86,7 +86,7 @@ function App() {
   const [forceViewOnly, setForceViewOnly] = useState(false);
   const [showDevAuthModal, setShowDevAuthModal] = useState(false);
   const [devPasswordInput, setDevPasswordInput] = useState('');
-  const [isDevUnlocked, setIsDevUnlocked] = useState(() => localStorage.getItem('dragg_force_dev_unlocked') === 'true');
+  const [isDevUnlocked, setIsDevUnlocked] = useState(() => getDraggItem('forceDevUnlocked', false) === true || getDraggItem('forceDevUnlocked') === 'true');
   const [isDevActive, setIsDevActive] = useState(() => checkIsDevMode());
 
   useEffect(() => {
@@ -111,7 +111,7 @@ function App() {
   const handleDevAuthSubmit = (e) => {
     e.preventDefault();
     if (isDevUnlocked) {
-      localStorage.removeItem('dragg_force_dev_unlocked');
+      removeDraggItem('forceDevUnlocked');
       setIsDevUnlocked(false);
       setShowDevAuthModal(false);
       window.dispatchEvent(new Event('dragg-env-change'));
@@ -120,7 +120,7 @@ function App() {
     }
 
     if (devPasswordInput === 'iameldenlord') {
-      localStorage.setItem('dragg_force_dev_unlocked', 'true');
+      setDraggItem('forceDevUnlocked', true);
       setIsDevUnlocked(true);
       setShowDevAuthModal(false);
       setDevPasswordInput('');

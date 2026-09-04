@@ -31,14 +31,16 @@ import {
   ChevronsRight,
   Minus,
   GitCommit,
-  Server
+  Server,
+  Save,
+  ArrowLeftRight
 } from 'lucide-react';
 
 function LeftVerticalToolbar({
   onOpenSystemCatalog,
   onAddCardDirect,
   onAddCardCustom,
-  gridType = 'dots',
+  gridType = 'none',
   onChangeGridType,
   boardBgColor = '#0a0a0c',
   onChangeBoardBgColor,
@@ -316,15 +318,6 @@ function LeftVerticalToolbar({
             <button
               className="submenu-btn"
               onClick={() => {
-                onAddCardDirect('code');
-                setActiveMenu(null);
-              }}
-            >
-              💻 Code Sandbox Card
-            </button>
-            <button
-              className="submenu-btn"
-              onClick={() => {
                 onAddCardDirect('sketch');
                 setActiveMenu(null);
               }}
@@ -534,6 +527,45 @@ function LeftVerticalToolbar({
                 }}
               />
             ))}
+
+            {/* Custom Link Color Picker */}
+            <label
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                background: 'conic-gradient(#f43f5e, #f59e0b, #10b981, #06b6d4, #6366f1, #d946ef, #f43f5e)',
+                border: connectorColor?.startsWith('#') && !['#ffffff', '#6366f1', '#10b981', '#ef4444'].includes(connectorColor) ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.3)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: connectorColor?.startsWith('#') && !['#ffffff', '#6366f1', '#10b981', '#ef4444'].includes(connectorColor) ? `0 0 8px ${connectorColor}` : 'none',
+                position: 'relative',
+                flexShrink: 0
+              }}
+              title="Pick Custom Link Color..."
+            >
+              <input
+                type="color"
+                value={connectorColor?.startsWith('#') ? connectorColor : '#38bdf8'}
+                onInput={(e) => {
+                  e.stopPropagation();
+                  onChangeConnectorColor(e.target.value);
+                }}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onChangeConnectorColor(e.target.value);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+              />
+            </label>
           </div>
         </div>
       </div>

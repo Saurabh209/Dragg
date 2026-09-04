@@ -4,7 +4,7 @@ import {
   Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw,
   GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag,
   Lock, Unlock, GitFork, Scale, Cloud, Server, Sun, Database, Zap, Package,
-  Layers, FastForward, Clock, Sliders, ExternalLink, Monitor, CloudUpload, MapPin
+  Layers, FastForward, Clock, Sliders, ExternalLink, Monitor, CloudUpload, MapPin, Sparkles
 } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 
@@ -127,7 +127,8 @@ function Card({
   onCloseBadgePicker,
   onToggleBadgePicker,
   onInspectSystemNode,
-  onOpenCodeStorage
+  onOpenCodeStorage,
+  onHighlightById
 }) {
   const isViewOnly = isViewOnlyGlobal || card.isLocked || isParentGroupLocked || isDimmed;
   const features = card.features || {
@@ -145,14 +146,25 @@ function Card({
     opacity: 0.18,
     filter: 'grayscale(80%) blur(0.5px)',
     pointerEvents: 'none',
-    transition: 'opacity 0.8s ease, filter 0.8s ease',
+    transitionProperty: 'opacity, filter',
+    transitionDuration: '0.8s',
+    transitionTimingFunction: 'ease',
+    transitionDelay: '0ms'
   } : {
-    transition: 'opacity 0.8s ease, filter 0.8s ease',
+    transitionProperty: 'opacity, filter',
+    transitionDuration: '0.8s',
+    transitionTimingFunction: 'ease',
     transitionDelay: highlightDelay ? `${highlightDelay}ms` : '0ms'
   };
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isEditingTag, setIsEditingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [showIdModal, setShowIdModal] = useState(false);
+  const [idInput, setIdInput] = useState(String(card.highlightId || ''));
+
+  useEffect(() => {
+    setIdInput(String(card.highlightId || ''));
+  }, [card.highlightId]);
 
   // Sketch states
   const [sketchColor, setSketchColor] = useState('#ffffff');
@@ -708,7 +720,7 @@ function Card({
     <div
       ref={cardRef}
       data-card-id={card.id}
-      className={`card-wrapper ${currentThemeClass} ${isSelected ? 'selected' : ''} ${card.completed ? 'completed' : ''} ${isBlinking ? 'blinking' : ''} ${isHeadingCard ? 'is-heading-card' : ''} ${hasBodyContent ? '' : 'no-body-content'} ${card.isStartNode ? 'is-start-node' : ''}`}
+      className={`card-wrapper ${currentThemeClass} ${isSelected ? 'selected' : ''} ${card.completed ? 'completed' : ''} ${isBlinking ? 'blinking' : ''} ${isHeadingCard ? 'is-heading-card' : ''} ${hasBodyContent ? '' : 'no-body-content'} ${card.isStartNode ? 'is-start-node' : ''} ${isDimmed ? 'dimmed' : ''}`}
       style={{
         transform: `translate(${card.x}px, ${card.y}px)`,
         width: card.width || 250,
@@ -788,15 +800,44 @@ function Card({
           ))}
           <div style={{ width: '1px', height: '14px', background: 'rgba(255, 255, 255, 0.2)', margin: '0 2px' }} />
           {/* Custom Color Picker input */}
-          <div className="color-picker-custom-wrapper" title="Custom color picker">
+          <label
+            className="color-picker-custom-wrapper"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              width: '18px',
+              height: '18px',
+              borderRadius: '50%',
+              background: 'conic-gradient(#f43f5e, #f59e0b, #10b981, #06b6d4, #6366f1, #d946ef, #f43f5e)',
+              border: isCustomColor ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.3)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: isCustomColor ? `0 0 8px ${card.color}` : 'none',
+              position: 'relative'
+            }}
+            title="Custom color picker"
+          >
             <input
               type="color"
               value={isCustomColor ? card.color : '#6366f1'}
-              onChange={(e) => onUpdate(card.id, { color: e.target.value })}
+              onInput={(e) => {
+                e.stopPropagation();
+                onUpdate(card.id, { color: e.target.value });
+              }}
+              onChange={(e) => {
+                e.stopPropagation();
+                onUpdate(card.id, { color: e.target.value });
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               className="color-dot-input"
-              style={{ width: '22px', height: '22px', border: 'none', background: 'none', cursor: 'pointer' }}
+              style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
             />
-          </div>
+          </label>
         </div>
       )}
 
@@ -888,6 +929,38 @@ function Card({
                 }
               }}
               placeholder="e.g. WIP, DEADEND, BUG..."
+              style={{
+                background: 'rgba(0, 0, 0, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '6px',
+                padding: '0.3rem 0.6rem',
+                color: '#fff',
+                fontSize: '0.75rem',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Custom Multiple Node IDs Input */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+              Node IDs (comma-separated)
+            </span>
+            <input
+              type="text"
+              value={Array.isArray(card.highlightIds) ? card.highlightIds.join(', ') : (card.highlightId || '')}
+              onChange={(e) => {
+                const rawVal = e.target.value;
+                const parsedArray = rawVal
+                  .split(/[, ]+/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                onUpdate(card.id, {
+                  highlightId: rawVal,
+                  highlightIds: parsedArray
+                });
+              }}
+              placeholder="e.g. node1, node2, auth..."
               style={{
                 background: 'rgba(0, 0, 0, 0.4)',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -1066,79 +1139,6 @@ function Card({
                 }}
               >
                 <Sliders size={12} /> Configure
-              </button>
-            </div>
-          </div>
-        ) : card.type === 'code_storage' ? (
-          <div
-            className="code-storage-card-body"
-            style={{
-              padding: '12px',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              background: '#0f172a',
-              borderRadius: '14px',
-              border: '1px solid rgba(255,255,255,0.15)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-              color: '#f8fafc',
-              boxSizing: 'border-box'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Code2 size={16} color="#6366f1" />
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>
-                  {card.title || 'Code Snippet'}
-                </span>
-              </div>
-              <div className="card-drag-handle">
-                <GripHorizontal size={14} color="#64748b" />
-              </div>
-            </div>
-
-            <div
-              style={{
-                fontSize: '0.72rem',
-                fontFamily: 'monospace',
-                color: '#38bdf8',
-                background: '#090d16',
-                padding: '6px 8px',
-                borderRadius: '6px',
-                margin: '6px 0',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {card.code ? card.code.split('\n')[0] : '// Empty snippet'}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
-                {(card.code || '').split('\n').length} lines
-              </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onOpenCodeStorage) onOpenCodeStorage(card);
-                }}
-                style={{
-                  background: '#6366f1',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '4px 10px',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <ExternalLink size={10} /> Open Storage
               </button>
             </div>
           </div>
