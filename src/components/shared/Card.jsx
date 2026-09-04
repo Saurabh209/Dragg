@@ -1207,6 +1207,7 @@ function Card({
                     className="card-badge-pill"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isViewOnly) return;
                       if (showBadgePicker) onCloseBadgePicker && onCloseBadgePicker();
                       else onToggleBadgePicker && onToggleBadgePicker(card.id, e);
                     }}

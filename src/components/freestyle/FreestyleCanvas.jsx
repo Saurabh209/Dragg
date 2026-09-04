@@ -741,6 +741,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   };
 
   const handleUpdateConnectionId = (connId, customId) => {
+    if (isViewOnly) return;
     const cleanId = String(customId || '').trim();
     setConnections((prev) =>
       prev.map((c) => (c.id === connId ? { ...c, customId: cleanId } : c))
@@ -3826,24 +3827,26 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Share</span>
           </button>
 
-          <button
-            className="board-card-delete-btn glass"
-            style={{
-              padding: '0.35rem 0.55rem',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-              background: 'rgba(18, 18, 24, 0.4)',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
-              color: 'var(--color-text-main)'
-            }}
-            onClick={handleExportJSON}
-            title="Download Board JSON Data (Excludes name & password)"
-          >
-            <Download size={12} color="var(--accent-cyan)" />
-            <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Export JSON</span>
-          </button>
+          {!isViewOnly && (
+            <button
+              className="board-card-delete-btn glass"
+              style={{
+                padding: '0.35rem 0.55rem',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                background: 'rgba(18, 18, 24, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                color: 'var(--color-text-main)'
+              }}
+              onClick={handleExportJSON}
+              title="Download Board JSON Data (Excludes name & password)"
+            >
+              <Download size={12} color="var(--accent-cyan)" />
+              <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Export JSON</span>
+            </button>
+          )}
 
           {(highlightedPathCardDepths || highlightedPathStartCardId) && (
             <button
@@ -3889,7 +3892,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Outline</span>
           </button>
 
-          <button
+          {/* <button
             className={`board-card-delete-btn glass ${isClipboardSliderOpen ? 'active' : ''}`}
             style={{
               padding: '0.35rem 0.55rem',
@@ -3906,7 +3909,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           >
             <Clipboard size={13} color="#38bdf8" />
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Dragg Clipboard</span>
-          </button>
+          </button> */}
 
           <button
             className="board-card-delete-btn glass"
@@ -4473,133 +4476,135 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           </div>
 
           {/* HTML Connection Pills Overlay Layer (Guaranteed ALWAYS ON TOP of Cards) */}
-          <div
-            className="connection-pills-overlay-layer"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 0,
-              height: 0,
-              overflow: 'visible',
-              zIndex: 9999,
-              pointerEvents: 'none'
-            }}
-          >
-            {connections.map((conn) => {
-              const cardA = cards.find((c) => c.id === conn.fromCardId);
-              const cardB = cards.find((c) => c.id === conn.toCardId);
-              if (!cardA || !cardB) return null;
+          {!isViewOnly && (
+            <div
+              className="connection-pills-overlay-layer"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: 0,
+                height: 0,
+                overflow: 'visible',
+                zIndex: 9999,
+                pointerEvents: 'none'
+              }}
+            >
+              {connections.map((conn) => {
+                const cardA = cards.find((c) => c.id === conn.fromCardId);
+                const cardB = cards.find((c) => c.id === conn.toCardId);
+                if (!cardA || !cardB) return null;
 
-              const fromSide = conn.fromSide || 'right';
-              const toSide = conn.toSide || 'left';
-              const from = (conn.fromOffsetX !== undefined && conn.fromOffsetY !== undefined)
-                ? { x: cardA.x + conn.fromOffsetX, y: cardA.y + conn.fromOffsetY }
-                : getPortCoords(cardA, fromSide);
-              const to = (conn.toOffsetX !== undefined && conn.toOffsetY !== undefined)
-                ? { x: cardB.x + conn.toOffsetX, y: cardB.y + conn.toOffsetY }
-                : getPortCoords(cardB, toSide);
+                const fromSide = conn.fromSide || 'right';
+                const toSide = conn.toSide || 'left';
+                const from = (conn.fromOffsetX !== undefined && conn.fromOffsetY !== undefined)
+                  ? { x: cardA.x + conn.fromOffsetX, y: cardA.y + conn.fromOffsetY }
+                  : getPortCoords(cardA, fromSide);
+                const to = (conn.toOffsetX !== undefined && conn.toOffsetY !== undefined)
+                  ? { x: cardB.x + conn.toOffsetX, y: cardB.y + conn.toOffsetY }
+                  : getPortCoords(cardB, toSide);
 
-              const logicalSideA = fromSide === 'freestyle' ? getLogicalSide(cardA, from) : fromSide;
-              const logicalSideB = toSide === 'freestyle' ? getLogicalSide(cardB, to) : toSide;
-              const connStyle = conn.style || 'default';
+                const logicalSideA = fromSide === 'freestyle' ? getLogicalSide(cardA, from) : fromSide;
+                const logicalSideB = toSide === 'freestyle' ? getLogicalSide(cardB, to) : toSide;
+                const connStyle = conn.style || 'default';
 
-              const pathProps = getPathProperties(from, to, logicalSideA, logicalSideB, connStyle, cardA, cardB, conn.waypoints);
-              const isConnDimmed = highlightedPathConnectionIds && !highlightedPathConnectionIds.includes(conn.id);
+                const pathProps = getPathProperties(from, to, logicalSideA, logicalSideB, connStyle, cardA, cardB, conn.waypoints);
+                const isConnDimmed = highlightedPathConnectionIds && !highlightedPathConnectionIds.includes(conn.id);
 
-              if (isConnDimmed) return null;
+                if (isConnDimmed) return null;
 
-              const isHovered = hoveredConnId === conn.id;
-              const isEditing = editingConnId === conn.id;
+                const isHovered = hoveredConnId === conn.id;
+                const isEditing = editingConnId === conn.id;
 
-              return (
-                <div
-                  key={`pill-overlay-${conn.id}`}
-                  className={`conn-pill-wrapper ${isHovered ? 'is-hovered' : ''} ${isEditing ? 'is-editing' : ''}`}
-                  onMouseEnter={() => {
-                    if (!isConnDimmed) setHoveredConnId(conn.id);
-                  }}
-                  onMouseLeave={() => setHoveredConnId(null)}
-                  style={{
-                    position: 'absolute',
-                    left: `${pathProps.midpoint.x}px`,
-                    top: `${pathProps.midpoint.y}px`,
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: isEditing ? 999999 : 9999,
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  <div className={`conn-node-pill-group ${isHovered ? 'hovered' : ''} ${isEditing ? 'editing' : ''}`}>
-                    <div
-                      className={`conn-label-pill glass ${isEditing ? 'editing' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (editingConnId !== conn.id) {
-                          setEditingConnId(conn.id);
-                        }
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      title={isEditing ? undefined : "Click to edit Label / ID inline"}
-                      style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
-                    >
-                      <AlignLeft size={11} className="pill-icon" color="#a5b4fc" style={{ flexShrink: 0 }} />
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          autoFocus
-                          defaultValue={conn.customId || ''}
-                          placeholder="Label"
-                          className="conn-pill-input"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                return (
+                  <div
+                    key={`pill-overlay-${conn.id}`}
+                    className={`conn-pill-wrapper ${isHovered ? 'is-hovered' : ''} ${isEditing ? 'is-editing' : ''}`}
+                    onMouseEnter={() => {
+                      if (!isConnDimmed) setHoveredConnId(conn.id);
+                    }}
+                    onMouseLeave={() => setHoveredConnId(null)}
+                    style={{
+                      position: 'absolute',
+                      left: `${pathProps.midpoint.x}px`,
+                      top: `${pathProps.midpoint.y}px`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: isEditing ? 999999 : 9999,
+                      pointerEvents: 'auto'
+                    }}
+                  >
+                    <div className={`conn-node-pill-group ${isHovered ? 'hovered' : ''} ${isEditing ? 'editing' : ''}`}>
+                      <div
+                        className={`conn-label-pill glass ${isEditing ? 'editing' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (editingConnId !== conn.id) {
+                            setEditingConnId(conn.id);
+                          }
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        title={isEditing ? undefined : "Click to edit Label / ID inline"}
+                        style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
+                      >
+                        <AlignLeft size={11} className="pill-icon" color="#a5b4fc" style={{ flexShrink: 0 }} />
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            autoFocus
+                            defaultValue={conn.customId || ''}
+                            placeholder="Label"
+                            className="conn-pill-input"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = String(e.target.value || '').trim();
+                                handleUpdateConnectionId(conn.id, val);
+                                setEditingConnId(null);
+                              } else if (e.key === 'Escape') {
+                                setEditingConnId(null);
+                              }
+                            }}
+                            onBlur={(e) => {
                               const val = String(e.target.value || '').trim();
                               handleUpdateConnectionId(conn.id, val);
                               setEditingConnId(null);
-                            } else if (e.key === 'Escape') {
-                              setEditingConnId(null);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const val = String(e.target.value || '').trim();
-                            handleUpdateConnectionId(conn.id, val);
-                            setEditingConnId(null);
-                          }}
-                        />
-                      ) : (
-                        <span className="pill-text">{conn.customId ? conn.customId : 'Label'}</span>
-                      )}
+                            }}
+                          />
+                        ) : (
+                          <span className="pill-text">{conn.customId ? conn.customId : 'Label'}</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="conn-circle-btn delete glass"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteConnection(conn.id);
+                        }}
+                        title="Delete Connection"
+                        style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
+                      >
+                        <Trash2 size={10} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="conn-circle-btn highlight glass"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleHighlightByCustomId(conn.customId);
+                        }}
+                        title="Highlight nodes with same ID"
+                        style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
+                      >
+                        <Sparkles size={10} color="#38bdf8" />
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      className="conn-circle-btn delete glass"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteConnection(conn.id);
-                      }}
-                      title="Delete Connection"
-                      style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
-                    >
-                      <Trash2 size={10} />
-                    </button>
-
-                    <button
-                      type="button"
-                      className="conn-circle-btn highlight glass"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleHighlightByCustomId(conn.customId);
-                      }}
-                      title="Highlight nodes with same ID"
-                      style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
-                    >
-                      <Sparkles size={10} color="#38bdf8" />
-                    </button>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Marquee Drag Box Selection Overlay */}
           {selectionBox && (
@@ -5148,24 +5153,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                 <span>Focus / Zoom Card</span>
               </button>
 
-              {(() => {
-                const card = cards.find((c) => c.id === contextMenu.cardId);
-                if (card && card.type !== 'group') {
-                  return (
-                    <button
-                      className="context-menu-item"
-                      onClick={() => {
-                        handleViewPath(contextMenu.cardId);
-                        setContextMenu(null);
-                      }}
-                    >
-                      <Compass size={13} color="var(--accent-cyan)" />
-                      <span>View Connection Path</span>
-                    </button>
-                  );
-                }
-                return null;
-              })()}
+
 
               {(() => {
                 const card = cards.find(c => c.id === contextMenu.cardId);
@@ -5387,17 +5375,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               {!isViewOnly && (
                 <>
                   <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '4px 0' }} />
-                  <button
-                    className="context-menu-item"
-                    onClick={() => {
-                      handleHighlightAllConnected(contextMenu.cardId);
-                      setContextMenu(null);
-                    }}
-                    style={{ color: '#38bdf8', fontWeight: 600 }}
-                  >
-                    <Sparkles size={13} color="#38bdf8" />
-                    <span>Highlight Connected Nodes & Cards</span>
-                  </button>
+
                   <button
                     className={`context-menu-item danger ${deleteConfirmTarget === contextMenu.cardId ? 'confirm-active' : ''}`}
                     onClick={() => {

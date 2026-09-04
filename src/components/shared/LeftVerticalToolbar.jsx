@@ -899,16 +899,18 @@ function LeftVerticalToolbar({
                     >
                       🔍 Recenter Viewport
                     </button>
-                    <button
-                      className="submenu-btn"
-                      onClick={() => {
-                        onExportPNG();
-                        setActiveMenu(null);
-                      }}
-                      style={{ color: 'var(--color-text-main)' }}
-                    >
-                      📥 Export as PNG
-                    </button>
+                    {!isViewOnly && (
+                      <button
+                        className="submenu-btn"
+                        onClick={() => {
+                          onExportPNG();
+                          setActiveMenu(null);
+                        }}
+                        style={{ color: 'var(--color-text-main)' }}
+                      >
+                        📥 Export as PNG
+                      </button>
+                    )}
                     <button
                       className="submenu-btn"
                       onClick={() => {
