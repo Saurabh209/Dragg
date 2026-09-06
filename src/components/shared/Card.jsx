@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Trash2, Palette, Plus, X, Link2, Pencil, Eraser, FileText, Code2, RefreshCw,
+  Trash2, Palette, Plus, X, Link2, CircleDot, Pencil, Eraser, FileText, Code2, RefreshCw,
   GripHorizontal, Paperclip, Download, Image as ImageIcon, Play, Check, Box, Tag,
   Lock, Unlock, GitFork, Scale, Cloud, Server, Sun, Database, Zap, Package,
   Layers, FastForward, Clock, Sliders, ExternalLink, Monitor, CloudUpload, MapPin, Sparkles
@@ -1502,37 +1502,41 @@ function Card({
       {!isViewOnly && toolMode === 'select' && features.connectPorts && (
         <>
           <div
-            className="connection-node node-top"
+            className={`connection-node node-top ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
             onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'top', e);
             }}
-            title="Drag to connect"
-          />
+          >
+            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+          </div>
           <div
-            className="connection-node node-right"
+            className={`connection-node node-right ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
             onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'right', e);
             }}
-            title="Drag to connect"
-          />
+          >
+            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+          </div>
           <div
-            className="connection-node node-bottom"
+            className={`connection-node node-bottom ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
             onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'bottom', e);
             }}
-            title="Drag to connect"
-          />
+          >
+            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+          </div>
           <div
-            className="connection-node node-left"
+            className={`connection-node node-left ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
             onPointerDown={(e) => {
               e.stopPropagation();
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'left', e);
             }}
-            title="Drag to connect"
-          />
+          >
+            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+          </div>
         </>
       )}
     </div>

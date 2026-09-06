@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import Card, { LANGUAGES, getPlaceholderForLang } from '../shared/Card';
 import LeftVerticalToolbar from '../shared/LeftVerticalToolbar';
-import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag, Download, Clipboard, AlertTriangle, Sparkles, AlignLeft } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag, Download, Clipboard, AlertTriangle, Sparkles, AlignLeft, GitFork } from 'lucide-react';
 import GroupContainer from '../shared/GroupContainer';
 import DraggClipboardSlider, { copyToDraggClipboard, getDraggClipboardItems } from '../shared/DraggClipboardSlider';
 import { getDraggItem, setDraggItem, getDraggBoardPass, setDraggBoardPass } from '../../utils/draggStorage';
@@ -507,6 +507,27 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     e.preventDefault();
     e.stopPropagation();
 
+    // Disable right click / context menu on resize handles or during active node connection drafting
+    const isResizeHandle = e.target.closest('.resize-handle, .resize-handle-se, [class*="resize-handle"]');
+    if (draftConnection || isResizeHandle) {
+      setContextMenu(null);
+      return;
+    }
+
+    const connGroup = e.target.closest('.connection-group') || e.target.closest('.conn-pill-wrapper');
+    if (connGroup) {
+      const connId = connGroup.getAttribute('data-connection-id');
+      if (connId && !isViewOnly) {
+        setDeleteConfirmTarget(null);
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          connectionId: connId
+        });
+        return;
+      }
+    }
+
     const cardWrapper = e.target.closest('.card-wrapper');
     let targetCardId = null;
     if (cardWrapper) {
@@ -519,13 +540,17 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       }
     }
 
-    if (isViewOnly && !targetCardId && !highlightedPathCardDepths) {
-      setContextMenu(null);
-      return;
+    if (isViewOnly) {
+      if (!targetCardId && highlightedPathCardDepths) {
+        // Only allow canvas context menu in view mode if clearing path highlight is available
+      } else {
+        setContextMenu(null);
+        return;
+      }
     }
 
     const menuWidth = 230;
-    const menuHeight = 450; // Conservative max height to ensure all options fit in viewport
+    const estHeight = targetCardId ? 340 : 220;
 
     let x = e.clientX;
     let y = e.clientY;
@@ -535,8 +560,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     }
     if (x < 12) x = 12;
 
-    if (y + menuHeight > window.innerHeight - 12) {
-      y = Math.max(12, window.innerHeight - menuHeight - 12);
+    if (y + estHeight > window.innerHeight - 12) {
+      y = Math.max(12, e.clientY - estHeight);
     }
     if (y < 12) y = 12;
 
@@ -740,57 +765,43 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     setActiveHighlightedCustomId(null);
   };
 
-  const handleUpdateConnectionId = (connId, customId) => {
+  const handleAddConnectionId = (connId, newTag) => {
     if (isViewOnly) return;
-    const cleanId = String(customId || '').trim();
+    const cleanId = String(newTag || '').trim();
+    if (!cleanId) return;
+
     setConnections((prev) =>
-      prev.map((c) => (c.id === connId ? { ...c, customId: cleanId } : c))
+      prev.map((c) => {
+        if (c.id !== connId) return c;
+        const currentIds = Array.isArray(c.customIds)
+          ? c.customIds
+          : String(c.customId || '').split(/[, ]+/).filter(Boolean);
+
+        if (currentIds.includes(cleanId)) return c;
+        const updated = [...currentIds, cleanId];
+        return { ...c, customIds: updated, customId: updated.join(', ') };
+      })
     );
-    if (cleanId) {
-      showToast(`Connection node ID set to "${cleanId}"`, 'success');
-    }
+    showToast(`Added tag "${cleanId}" to line`, 'success');
   };
 
-  const handleHighlightAllConnected = (startCardId) => {
-    if (!startCardId) return;
+  const handleRemoveConnectionId = (connId, tagToRemove) => {
+    if (isViewOnly) return;
+    setConnections((prev) =>
+      prev.map((c) => {
+        if (c.id !== connId) return c;
+        const currentIds = Array.isArray(c.customIds)
+          ? c.customIds
+          : String(c.customId || '').split(/[, ]+/).filter(Boolean);
 
-    if (highlightedPathStartCardId === startCardId) {
-      handleClearHighlight();
-      showToast('Cleared network highlight', 'info');
-      return;
-    }
-
-    const connectedCardIds = new Set([startCardId]);
-    const connectedConnIds = new Set();
-    const queue = [startCardId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-
-      connections.forEach((conn) => {
-        if (conn.fromCardId === currentId || conn.toCardId === currentId) {
-          connectedConnIds.add(conn.id);
-          const neighborId = conn.fromCardId === currentId ? conn.toCardId : conn.fromCardId;
-          if (!connectedCardIds.has(neighborId)) {
-            connectedCardIds.add(neighborId);
-            queue.push(neighborId);
-          }
-        }
-      });
-    }
-
-    const cardDepths = {};
-    connectedCardIds.forEach((id) => { cardDepths[id] = 0; });
-
-    setHighlightedPathStartCardId(startCardId);
-    setHighlightedPathCardDepths(cardDepths);
-    setHighlightedPathConnectionIds(Array.from(connectedConnIds));
-
-    showToast(
-      `Highlighted network: ${connectedCardIds.size} card(s) & ${connectedConnIds.size} connection(s)`,
-      'success'
+        const updated = currentIds.filter((id) => id !== tagToRemove);
+        return { ...c, customIds: updated, customId: updated.join(', ') };
+      })
     );
+    showToast(`Removed tag "${tagToRemove}"`, 'info');
   };
+
+
 
   const handleHighlightByCustomId = (targetIdStr) => {
     const cleanId = String(targetIdStr || '').trim();
@@ -1636,7 +1647,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     return () => clearInterval(intervalId);
   }, [isViewOnly, autoSaveEnabled, hasUnsavedChanges]);
 
-  // Track actual board edits to set hasUnsavedChanges
+  // Track actual board edits to set hasUnsavedChanges (excluding pure pan/zoom view navigation)
   useEffect(() => {
     if (isInitialLoad.current || isViewOnly) return;
 
@@ -1644,7 +1655,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     if (!unsavedSinceRef.current) {
       unsavedSinceRef.current = Date.now();
     }
-  }, [cards, connections, drawings, boardName, pan, zoom, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings]);
+  }, [cards, connections, drawings, boardName, boardCode, boardLanguage, highlightedPathStartCardId, boardBgColor, liveBgStyle, toolbarSettings]);
 
   // Monitor elapsed time since the first unsaved change and trigger alert glow if > 5 minutes
   useEffect(() => {
@@ -2513,6 +2524,16 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           return c;
         });
       }
+
+      // Check if update yields actual changes
+      let hasChanges = false;
+      for (const key of Object.keys(updatedFields)) {
+        if (cardToUpdate[key] !== updatedFields[key]) {
+          hasChanges = true;
+          break;
+        }
+      }
+      if (!hasChanges) return prev;
 
       return prev.map((c) => (c.id === cardId ? { ...c, ...updatedFields } : c));
     });
@@ -3552,6 +3573,9 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       <div
         ref={containerRef}
         className={`canvas-container ${activeToolClass} ${isViewOnly ? 'view-only-canvas' : ''}`}
+        data-canvas-root="true"
+        data-view-only={isViewOnly ? "true" : "false"}
+        data-draft-connecting={draftConnection ? "true" : "false"}
         onPointerDown={handleContainerMouseDown}
         onClick={handleCanvasClick}
         onContextMenu={handleContextMenu}
@@ -3805,7 +3829,9 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             </button>
           )}
 
+          {/* Share button commented out for now
           <button
+            className="board-card-delete-btn glass"
             style={{
               padding: '0.35rem 0.55rem',
               borderRadius: '6px',
@@ -3826,6 +3852,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             <Copy size={12} />
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Share</span>
           </button>
+          */}
 
           {!isViewOnly && (
             <button
@@ -4196,11 +4223,30 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               return (
                 <g
                   key={conn.id}
+                  data-connection-id={conn.id}
                   className={`connection-group ${isConnDimmed ? 'is-dimmed' : ''} ${editingConnId === conn.id ? 'is-editing' : ''}`}
                   onMouseEnter={() => {
                     if (!isConnDimmed) setHoveredConnId(conn.id);
                   }}
                   onMouseLeave={() => setHoveredConnId(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onDoubleClick={(e) => {
+                    if (isViewOnly) return;
+                    e.stopPropagation();
+                    handleDeleteConnection(conn.id);
+                  }}
+                  onContextMenu={(e) => {
+                    if (isViewOnly) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      connectionId: conn.id
+                    });
+                  }}
                   style={{
                     opacity: isConnDimmed ? 0.08 : 1,
                     transitionProperty: 'opacity',
@@ -4512,96 +4558,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                 const isConnDimmed = highlightedPathConnectionIds && !highlightedPathConnectionIds.includes(conn.id);
 
                 if (isConnDimmed) return null;
-
-                const isHovered = hoveredConnId === conn.id;
-                const isEditing = editingConnId === conn.id;
-
-                return (
-                  <div
-                    key={`pill-overlay-${conn.id}`}
-                    className={`conn-pill-wrapper ${isHovered ? 'is-hovered' : ''} ${isEditing ? 'is-editing' : ''}`}
-                    onMouseEnter={() => {
-                      if (!isConnDimmed) setHoveredConnId(conn.id);
-                    }}
-                    onMouseLeave={() => setHoveredConnId(null)}
-                    style={{
-                      position: 'absolute',
-                      left: `${pathProps.midpoint.x}px`,
-                      top: `${pathProps.midpoint.y}px`,
-                      transform: 'translate(-50%, -50%)',
-                      zIndex: isEditing ? 999999 : 9999,
-                      pointerEvents: 'auto'
-                    }}
-                  >
-                    <div className={`conn-node-pill-group ${isHovered ? 'hovered' : ''} ${isEditing ? 'editing' : ''}`}>
-                      <div
-                        className={`conn-label-pill glass ${isEditing ? 'editing' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (editingConnId !== conn.id) {
-                            setEditingConnId(conn.id);
-                          }
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title={isEditing ? undefined : "Click to edit Label / ID inline"}
-                        style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
-                      >
-                        <AlignLeft size={11} className="pill-icon" color="#a5b4fc" style={{ flexShrink: 0 }} />
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            autoFocus
-                            defaultValue={conn.customId || ''}
-                            placeholder="Label"
-                            className="conn-pill-input"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const val = String(e.target.value || '').trim();
-                                handleUpdateConnectionId(conn.id, val);
-                                setEditingConnId(null);
-                              } else if (e.key === 'Escape') {
-                                setEditingConnId(null);
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const val = String(e.target.value || '').trim();
-                              handleUpdateConnectionId(conn.id, val);
-                              setEditingConnId(null);
-                            }}
-                          />
-                        ) : (
-                          <span className="pill-text">{conn.customId ? conn.customId : 'Label'}</span>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        className="conn-circle-btn delete glass"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteConnection(conn.id);
-                        }}
-                        title="Delete Connection"
-                        style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
-                      >
-                        <Trash2 size={10} />
-                      </button>
-
-                      <button
-                        type="button"
-                        className="conn-circle-btn highlight glass"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleHighlightByCustomId(conn.customId);
-                        }}
-                        title="Highlight nodes with same ID"
-                        style={{ pointerEvents: (isHovered || isEditing) ? 'auto' : 'none' }}
-                      >
-                        <Sparkles size={10} color="#38bdf8" />
-                      </button>
-                    </div>
-                  </div>
-                );
+                return null;
               })}
             </div>
           )}
@@ -4995,8 +4952,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             position: 'fixed',
             left: `${contextMenu.x}px`,
             top: `${contextMenu.y}px`,
-            zIndex: 99999,
-            background: 'rgba(14, 14, 22, 0.95)',
+            zIndex: 10000,
+            background: 'rgba(15, 23, 42, 0.95)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -5006,11 +4963,157 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             flexDirection: 'column',
             gap: '3px',
             boxShadow: '0 14px 40px rgba(0, 0, 0, 0.75)',
-            minWidth: '200px',
+            width: '280px',
             animation: 'contextMenuScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards'
           }}
         >
-          {selectedCardIds.length > 1 ? (
+          {contextMenu.connectionId ? (() => {
+            const targetConn = connections.find(c => c.id === contextMenu.connectionId);
+            if (!targetConn) return null;
+
+            const currentTags = Array.isArray(targetConn.customIds)
+              ? targetConn.customIds
+              : String(targetConn.customId || '').split(/[, ]+/).filter(Boolean);
+
+            return (
+              <>
+                <div style={{ padding: '4px 8px 2px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Link2 size={12} color="var(--accent-cyan)" />
+                    Node Line IDs
+                  </span>
+                  {currentTags.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleHighlightByCustomId(currentTags[0]);
+                        setContextMenu(null);
+                      }}
+                      title={`Highlight nodes sharing ID: ${currentTags[0]}`}
+                      style={{
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        border: '1px solid rgba(56, 189, 248, 0.25)',
+                        color: '#38bdf8',
+                        borderRadius: '5px',
+                        padding: '2px 7px',
+                        fontSize: '0.62rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontWeight: 600,
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)'}
+                    >
+                      Highlight
+                    </button>
+                  )}
+                </div>
+
+                {/* Tag Pills & Inline Add Tag Input */}
+                <div
+                  style={{
+                    padding: '6px 8px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    borderRadius: '8px',
+                    margin: '2px 0',
+                    maxHeight: '130px',
+                    overflowY: 'auto'
+                  }}
+                >
+                  {currentTags.map((tag) => (
+                    <span
+                      key={tag}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 7px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        fontSize: '0.7rem',
+                        color: 'var(--color-text-main)',
+                        fontWeight: 500
+                      }}
+                    >
+                      {tag}
+                      {!isViewOnly && (
+                        <X
+                          size={11}
+                          className="tag-delete-btn"
+                          style={{ cursor: 'pointer', opacity: 0.7 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveConnectionId(targetConn.id, tag);
+                          }}
+                        />
+                      )}
+                    </span>
+                  ))}
+
+                  {!isViewOnly && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        placeholder="+ tag"
+                        style={{
+                          fontSize: '0.7rem',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          background: 'transparent',
+                          border: '1px dashed rgba(255, 255, 255, 0.25)',
+                          color: '#ffffff',
+                          width: '56px',
+                          outline: 'none',
+                          transition: 'width 0.2s, border-color 0.2s'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.width = '75px';
+                          e.target.style.borderColor = 'var(--accent-cyan)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.width = '56px';
+                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = String(e.target.value || '').trim();
+                            if (val) {
+                              handleAddConnectionId(targetConn.id, val);
+                              e.target.value = '';
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {!isViewOnly && (
+                  <>
+                    <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '4px 0' }} />
+                    <button
+                      className="context-menu-item danger"
+                      style={{ width: 'fit-content' }}
+                      onClick={() => {
+                        handleDeleteConnection(targetConn.id);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <Trash2 size={13} color="var(--accent-rose)" />
+                      <span>Delete Node Line</span>
+                    </button>
+                  </>
+                )}
+              </>
+            );
+          })() : selectedCardIds.length > 1 && !isViewOnly ? (
             <>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Multi-Card Selection ({selectedCardIds.length})
@@ -5113,7 +5216,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
               <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '3px 0' }} />
             </>
-          ) : contextMenu.cardId ? (
+          ) : (contextMenu.cardId && !isViewOnly) ? (
             <>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Card Actions
@@ -5412,7 +5515,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             </>
           ) : null}
 
-          {!contextMenu.cardId && selectedCardIds.length <= 1 && (
+          {!contextMenu.cardId && !contextMenu.connectionId && selectedCardIds.length <= 1 && (
             <>
               {(!isViewOnly || highlightedPathCardDepths) && (
                 <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>

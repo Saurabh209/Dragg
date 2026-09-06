@@ -16,6 +16,7 @@ export default function SystemDesignCanvas({ boardId, onBack, showToast }) {
 
   return (
     <div
+      data-canvas-root="true"
       style={{
         width: '100vw',
         height: '100vh',
@@ -25,7 +26,7 @@ export default function SystemDesignCanvas({ boardId, onBack, showToast }) {
       }}
     >
       {/* Top Header Navbar with Back to Dashboard button */}
-      <div style={{ position: 'fixed', top: '20px', left: '20px', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="canvas-header header-navbar" style={{ position: 'fixed', top: '20px', left: '20px', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
           onClick={onBack}
           style={{

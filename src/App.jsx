@@ -3,6 +3,7 @@ import Dashboard from './components/Dashboard';
 import FreestyleCanvas from './components/freestyle/FreestyleCanvas';
 import SystemDesignCanvas from './components/system_design/SystemDesignCanvas';
 import DevTool from './components/shared/DevTool';
+import CursorActionHint from './components/shared/CursorActionHint';
 import { getDraggItem, setDraggItem, removeDraggItem } from './utils/draggStorage';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -353,6 +354,9 @@ function App() {
           </div>
         ))}
       </div>
+
+      {/* Cursor Action Hint Preview Badge */}
+      <CursorActionHint />
 
       {/* Embedded DevTool (Dev Mode or Forced Unlocked) */}
       {isDevActive && <DevTool />}

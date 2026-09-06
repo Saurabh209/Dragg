@@ -54,6 +54,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Suppress native browser tooltips inside canvas workspace */
+.canvas-container [title],
+.board-workspace-wrapper [title],
+.system-design-canvas [title],
+.card-wrapper [title],
+.left-vertical-toolbar [title],
+[data-canvas-root="true"] [title] {
+  /* Tooltip text is superseded by CursorActionHint */
+}
+
 h1,
 h2,
 h3,
@@ -1385,13 +1395,74 @@ h6 {
 }
 
 
-/* Card Connection Node (Dot) handles */
+/* Card Connection Node Handles */
 .connection-node {
   position: absolute;
   z-index: 1000;
-  cursor: cell;
+  cursor: crosshair;
   pointer-events: auto;
   background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- FREESTYLE SNAPPING: Edge Anchor Line --- */
+.connection-node.node-layout-freestyle::after {
+  content: '';
+  position: absolute;
+  background: var(--accent-cyan, #00f2fe);
+  opacity: 0;
+  border-radius: 4px;
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
+  pointer-events: none;
+}
+
+/* Horizontal edge anchor lines */
+.node-top.node-layout-freestyle::after,
+.node-bottom.node-layout-freestyle::after {
+  height: 2px;
+  width: 80%;
+  box-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
+}
+
+/* Vertical edge anchor lines */
+.node-left.node-layout-freestyle::after,
+.node-right.node-layout-freestyle::after {
+  width: 2px;
+  height: 80%;
+  box-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
+}
+
+.connection-node.node-layout-freestyle:hover::after {
+  opacity: 1;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 1);
+}
+
+.card-container:hover .connection-node.node-layout-freestyle::after {
+  opacity: 0.4;
+}
+
+/* --- 4-DOT SNAPPING: 4 Center Circle Dots --- */
+.connection-node.node-layout-four-node .node-icon {
+  color: var(--accent-cyan, #00f2fe);
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 0 6px rgba(0, 242, 254, 0.6));
+  pointer-events: none;
+}
+
+.card-container:hover .connection-node.node-layout-four-node .node-icon,
+.connection-node.node-layout-four-node:hover .node-icon {
+  opacity: 0.85;
+  transform: scale(1);
+}
+
+.connection-node.node-layout-four-node:hover .node-icon {
+  opacity: 1;
+  transform: scale(1.25);
+  filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.95));
 }
 
 /* Position connection nodes as full-length edge stripes */
@@ -2474,6 +2545,30 @@ h6 {
 .view-only-canvas .card-action-btn * {
   pointer-events: auto !important;
   cursor: pointer !important;
+}
+
+/* Suppress all card, group, and node handle hover effects in View-Only Mode */
+.view-only-canvas .card-wrapper:hover,
+[data-view-only="true"] .card-wrapper:hover {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+.view-only-canvas .group-container:hover,
+[data-view-only="true"] .group-container:hover {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+.view-only-canvas .connection-node,
+.view-only-canvas .connection-node *,
+.view-only-canvas .connection-node::after,
+[data-view-only="true"] .connection-node,
+[data-view-only="true"] .connection-node *,
+[data-view-only="true"] .connection-node::after {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Mobile Responsive Media Queries */
@@ -4519,4 +4614,167 @@ h6 {
     gap: 0.8rem !important;
     box-sizing: border-box !important;
   }
-}
+}
+
+/* ==========================================
+   Cursor Action Hint Preview Badge Overlay (Ultra Minimal Frameless)
+   ========================================== */
+.cursor-action-hint-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 999999;
+  will-change: transform;
+}
+
+.cursor-action-hint-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  animation: cursorHintFadeIn 0.15s ease-out;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+@keyframes cursorHintFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.cursor-hint-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 3px;
+  background: rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #c7d2fe;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+
+.cursor-hint-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cursor-hint-item.disabled {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.cursor-hint-item.disabled .cursor-mouse-fill-path {
+  opacity: 0;
+}
+
+.cursor-mouse-fill-path {
+  opacity: 1;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), fill 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cursor-hint-item.is-danger,
+.cursor-hint-item.is-danger .cursor-mouse-svg,
+.cursor-hint-item.is-danger .cursor-hint-label {
+  color: #f43f5e !important;
+  filter: drop-shadow(0 0 6px rgba(244, 63, 94, 0.6));
+}
+
+.cursor-hint-item.disabled .cursor-mouse-svg {
+  color: #64748b;
+}
+
+.cursor-hint-item.disabled .cursor-hint-label {
+  color: #64748b;
+}
+
+.cursor-mouse-svg {
+  color: rgba(226, 232, 240, 0.85);
+  transition: color 0.4s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s cubic-bezier(0.16, 1, 0.3, 1), fill 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cursor-hint-label {
+  font-size: 8px;
+  font-weight: 400;
+  color: rgba(226, 232, 240, 0.85);
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  opacity: 0.85;
+  transition: color 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cursor-hint-label-fade {
+  animation: cursorHintLabelFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cursorHintLabelFadeIn {
+  0% {
+    opacity: 0.2;
+    transform: translateY(-1px);
+  }
+  100% {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+}
+
+.cursor-hint-separator {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 4px;
+}
+
+/* Dual Ripple Echo Animation for Double Tap / Click Hint */
+.double-tap-ripple-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.double-tap-ripple-ring-1 {
+  animation: doubleTapRipple 1.4s infinite cubic-bezier(0, 0.2, 0.8, 1);
+}
+
+.double-tap-ripple-ring-2 {
+  animation: doubleTapRipple 1.4s infinite cubic-bezier(0, 0.2, 0.8, 1);
+  animation-delay: 0.35s;
+}
+
+@keyframes doubleTapRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.7);
+    opacity: 0;
+  }
+}
+
+
+
