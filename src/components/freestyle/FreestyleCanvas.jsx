@@ -5118,7 +5118,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Multi-Card Selection ({selectedCardIds.length})
               </span>
-              <button
+              {/* <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard();
@@ -5127,7 +5127,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button>
+              </button> */}
 
               <button
                 className="context-menu-item"
@@ -5221,7 +5221,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Card Actions
               </span>
-              <button
+              {/* <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard(contextMenu.cardId);
@@ -5230,7 +5230,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button>
+              </button> */}
 
               <button
                 className="context-menu-item"

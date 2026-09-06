@@ -135,9 +135,12 @@ function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      const match = hash.match(/^#\/board\/([a-zA-Z0-9_-]+)$/);
+      const match = hash.match(/^#\/board\/([a-zA-Z0-9_-]+)(\?.*)?$/);
       if (match) {
         setCurrentBoardId(match[1]);
+        const searchParams = new URLSearchParams(match[2] || '');
+        const isViewMode = searchParams.get('mode') === 'view';
+        setForceViewOnly(isViewMode);
       } else {
         setCurrentBoardId(null);
         setBoardPassword('');
@@ -234,7 +237,7 @@ function App() {
           onSelectBoard={(boardId, password = '', viewOnly = false) => {
             setBoardPassword(password);
             setForceViewOnly(viewOnly);
-            window.location.hash = `#/board/${boardId}`;
+            window.location.hash = `#/board/${boardId}${viewOnly ? '?mode=view' : ''}`;
           }} 
           showToast={showToast} 
         />
