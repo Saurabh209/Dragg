@@ -360,84 +360,57 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
           }
         `}</style>
 
-        {/* 1. Header Row: "Emoji and more" */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc', fontSize: '0.85rem', fontWeight: 600 }}>
-            <span>Emoji and more</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', opacity: 0.5 }}>
-              <BoxSelect size={12} />
-              <span style={{ fontSize: '0.65rem' }}>°</span>
-            </div>
+        {/* Simplified Clean Header Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '10px', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Clipboard size={15} color="#38bdf8" />
+            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Dragg Clipboard</span>
           </div>
-          <button
-            onClick={handleCloseShade}
-            style={{
-              background: 'rgba(18, 18, 24, 0.4)',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
-              borderRadius: '6px',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-            title="Close"
-          >
-            <X size={14} />
-          </button>
-        </div>
 
-        {/* 2. Top Icon Tab Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '10px', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <Heart size={15} color="#94a3b8" style={{ cursor: 'pointer', opacity: 0.7 }} />
-          <Smile size={15} color="#94a3b8" style={{ cursor: 'pointer', opacity: 0.7 }} />
-          <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '3px', padding: '1px 3px', cursor: 'pointer' }}>GIF</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', cursor: 'pointer', opacity: 0.7 }}>;-)</span>
-          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', cursor: 'pointer', opacity: 0.7 }}>%Δ+</span>
-          
-          {/* Active Navbar Styled Clipboard Tab Indicator */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              background: 'rgba(56, 189, 248, 0.18)',
-              border: '1px solid #38bdf8',
-              borderRadius: '6px',
-              padding: '3px 8px',
-              color: '#38bdf8',
-              fontSize: '0.72rem',
-              fontWeight: 700
-            }}
-          >
-            <Clipboard size={13} color="#38bdf8" />
-            <span>Clip</span>
-          </div>
-        </div>
-
-        {/* 3. Subheader: "Clipboard" & "Clear all" */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>Clipboard</span>
-          {items.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {items.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                style={{
+                  background: 'rgba(18, 18, 24, 0.4)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  color: '#94a3b8',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+                  e.currentTarget.style.color = '#f43f5e';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = '#94a3b8';
+                }}
+              >
+                Clear all
+              </button>
+            )}
             <button
-              onClick={handleClearAll}
+              onClick={handleCloseShade}
               style={{
                 background: 'rgba(18, 18, 24, 0.4)',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
-                color: 'var(--color-text-main)',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                padding: '0.35rem 0.55rem',
                 borderRadius: '6px',
-                transition: 'all 0.15s'
+                color: '#94a3b8',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center'
               }}
-              onMouseEnter={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)'}
-              onMouseLeave={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.05)'}
+              title="Close"
             >
-              Clear all
+              <X size={14} />
             </button>
-          )}
+          </div>
         </div>
 
         {/* 4. Clipboard Cards List */}

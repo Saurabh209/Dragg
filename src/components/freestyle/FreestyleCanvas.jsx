@@ -679,17 +679,6 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       const card = cards.find((c) => c.id === id);
       if (!card) return;
 
-      let baseTitle = (card.title || 'Untitled Note').trim();
-      const copyMatch = baseTitle.match(/^(.*?)\s*\(Copy(?:\s+(\d+))?\)$/i);
-      let nextCount = 1;
-
-      if (copyMatch) {
-        baseTitle = copyMatch[1].trim();
-        const currentNum = copyMatch[2] ? parseInt(copyMatch[2], 10) : 1;
-        nextCount = currentNum + 1;
-      }
-
-      const newTitle = nextCount === 1 ? `${baseTitle} (Copy)` : `${baseTitle} (Copy ${nextCount})`;
       const newId = Math.random().toString(36).substring(2, 11);
 
       newCards.push({
@@ -697,7 +686,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         id: newId,
         x: card.x + 35,
         y: card.y + 35,
-        title: newTitle
+        title: card.title || 'Untitled Note'
       });
 
       newSelectedIds.push(newId);
@@ -3919,7 +3908,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Outline</span>
           </button>
 
-          {/* <button
+          <button
             className={`board-card-delete-btn glass ${isClipboardSliderOpen ? 'active' : ''}`}
             style={{
               padding: '0.35rem 0.55rem',
@@ -3936,7 +3925,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           >
             <Clipboard size={13} color="#38bdf8" />
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Dragg Clipboard</span>
-          </button> */}
+          </button>
 
           <button
             className="board-card-delete-btn glass"
@@ -5118,7 +5107,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Multi-Card Selection ({selectedCardIds.length})
               </span>
-              {/* <button
+              <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard();
@@ -5127,7 +5116,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button> */}
+              </button>
 
               <button
                 className="context-menu-item"
@@ -5221,7 +5210,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Card Actions
               </span>
-              {/* <button
+              <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard(contextMenu.cardId);
@@ -5230,7 +5219,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button> */}
+              </button>
 
               <button
                 className="context-menu-item"
