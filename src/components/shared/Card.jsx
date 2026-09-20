@@ -1508,7 +1508,7 @@ function Card({
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'top', e);
             }}
           >
-            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-top" />}
           </div>
           <div
             className={`connection-node node-right ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
@@ -1517,7 +1517,7 @@ function Card({
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'right', e);
             }}
           >
-            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-right" />}
           </div>
           <div
             className={`connection-node node-bottom ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
@@ -1526,7 +1526,7 @@ function Card({
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'bottom', e);
             }}
           >
-            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-bottom" />}
           </div>
           <div
             className={`connection-node node-left ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
@@ -1535,7 +1535,7 @@ function Card({
               onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'left', e);
             }}
           >
-            {card.nodeLayout !== 'freestyle' && <CircleDot className="node-icon" size={13} />}
+            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-left" />}
           </div>
         </>
       )}

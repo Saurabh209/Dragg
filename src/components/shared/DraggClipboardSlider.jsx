@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Clipboard, Copy, Trash2, X, Sparkles, Plus, Check, Clock, Layers, ChevronUp, Bell, Pin, MoreHorizontal, Smile, Heart, BoxSelect } from 'lucide-react';
 import { getDraggItem, setDraggItem } from '../../utils/draggStorage';
 
-const MAX_CLIPBOARD_ITEMS = 4;
+const MAX_CLIPBOARD_ITEMS = 6;
 
 export const getDraggClipboardItems = () => {
   try {
@@ -34,7 +34,7 @@ export const copyToDraggClipboard = (cardsToCopy, connectionsToCopy = [], preset
   const firstTitle = cardsToCopy[0]?.title || cardsToCopy[0]?.name || 'Card';
   let summaryTitle = '';
   if (cardsToCopy.length === 1) {
-    summaryTitle = `1 Card: "${firstTitle.substring(0, 24)}${firstTitle.length > 24 ? '...' : ''}"`;
+    summaryTitle = `${firstTitle.substring(0, 26)}${firstTitle.length > 26 ? '...' : ''}`;
   } else {
     summaryTitle = `${cardsToCopy.length} Cards ("${firstTitle.substring(0, 16)}..." + ${cardsToCopy.length - 1} more)`;
   }
@@ -61,13 +61,13 @@ export const copyToDraggClipboard = (cardsToCopy, connectionsToCopy = [], preset
     previewImage
   };
 
-  // Prepend new item, max 4 items (FIFO queue: 5th item drops the oldest at the end)
+  // Prepend new item, capped at MAX_CLIPBOARD_ITEMS
   const updatedList = [newItem, ...currentItems].slice(0, MAX_CLIPBOARD_ITEMS);
   saveDraggClipboardItems(updatedList);
   return newItem;
 };
 
-// Mini Canvas Replica Preview Component for Copied Cards & Connections
+// Mini Canvas Replica Preview Component for Copied Cards & Connections (Windows Hover Preview Style)
 function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
   if (!cards || cards.length === 0) return null;
 
@@ -78,19 +78,17 @@ function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
   const maxX = Math.max(...cards.map(c => (c.x || 0) + (c.width || 220)));
   const maxY = Math.max(...cards.map(c => (c.y || 0) + (c.height || 160)));
 
-  const contentW = Math.max(maxX - minX, 160);
-  const contentH = Math.max(maxY - minY, 120);
+  const contentW = Math.max(maxX - minX, 180);
+  const contentH = Math.max(maxY - minY, 130);
 
-  const containerW = 140;
-  const containerH = 75;
-
-  const scale = Math.min((containerW - 16) / contentW, (containerH - 16) / contentH, 0.45);
+  const containerH = 110;
+  const scale = Math.min(280 / contentW, (containerH - 20) / contentH, 0.55);
 
   const cardMap = {};
   cards.forEach(c => {
     cardMap[c.id] = {
-      cx: ((c.x || 0) - minX) * scale + 10 + ((c.width || 220) * scale) / 2,
-      cy: ((c.y || 0) - minY) * scale + 10 + ((c.height || 160) * scale) / 2
+      cx: ((c.x || 0) - minX) * scale + 14 + ((c.width || 220) * scale) / 2,
+      cy: ((c.y || 0) - minY) * scale + 14 + ((c.height || 160) * scale) / 2
     };
   });
 
@@ -111,15 +109,15 @@ function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
   return (
     <div
       style={{
-        width: `${containerW}px`,
+        width: '100%',
         height: `${containerH}px`,
         position: 'relative',
-        background: 'rgba(10, 15, 26, 0.85)',
-        borderRadius: '10px',
-        border: '1px solid rgba(56, 189, 248, 0.2)',
+        background: 'rgba(9, 13, 22, 0.95)',
+        borderRadius: '8px',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
         overflow: 'hidden',
-        boxShadow: 'inset 0 0 12px rgba(0,0,0,0.6)',
-        flexShrink: 0
+        boxShadow: 'inset 0 0 16px rgba(0, 0, 0, 0.8)',
+        boxSizing: 'border-box'
       }}
     >
       {/* Micro Grid Dots */}
@@ -128,8 +126,8 @@ function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
           position: 'absolute',
           inset: 0,
           backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.25) 1px, transparent 1px)',
-          backgroundSize: '8px 8px',
-          opacity: 0.6
+          backgroundSize: '10px 10px',
+          opacity: 0.5
         }}
       />
 
@@ -147,9 +145,9 @@ function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
               x2={toPos.cx}
               y2={toPos.cy}
               stroke={conn.color || '#38bdf8'}
-              strokeWidth="1.5"
-              strokeDasharray={conn.style === 'dashed' ? '2 2' : 'none'}
-              opacity="0.8"
+              strokeWidth="2"
+              strokeDasharray={conn.style === 'dashed' ? '3 3' : 'none'}
+              opacity="0.85"
             />
           );
         })}
@@ -157,10 +155,10 @@ function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
 
       {/* Mini Cards Replica */}
       {cards.map((c) => {
-        const left = ((c.x || 0) - minX) * scale + 8;
-        const top = ((c.y || 0) - minY) * scale + 8;
-        const w = Math.max((c.width || 220) * scale, 34);
-        const h = Math.max((c.height || 160) * scale, 22);
+        const left = ((c.x || 0) - minX) * scale + 10;
+        const top = ((c.y || 0) - minY) * scale + 10;
+        const w = Math.max((c.width || 220) * scale, 42);
+        const h = Math.max((c.height || 160) * scale, 28);
         const color = getCardColor(c);
         const titleText = c.title || c.name || 'Card';
 
@@ -173,26 +171,26 @@ function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
               top: `${top}px`,
               width: `${w}px`,
               height: `${h}px`,
-              background: `linear-gradient(135deg, ${color}25 0%, rgba(15, 23, 42, 0.92) 100%)`,
-              border: `1px solid ${color}aa`,
-              borderRadius: '5px',
-              padding: '2px 4px',
+              background: `linear-gradient(135deg, ${color}33 0%, rgba(15, 23, 42, 0.95) 100%)`,
+              border: `1.5px solid ${color}dd`,
+              borderRadius: '6px',
+              padding: '3px 5px',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
-              boxShadow: `0 2px 5px ${color}33`
+              boxShadow: `0 3px 8px ${color}44, 0 1px 3px rgba(0,0,0,0.6)`
             }}
           >
             <div
               style={{
-                fontSize: '0.52rem',
+                fontSize: '0.58rem',
                 fontWeight: 700,
                 color: '#f8fafc',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                lineHeight: 1
+                lineHeight: 1.1
               }}
             >
               {titleText}
@@ -280,6 +278,7 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
     e.stopPropagation();
     const updated = items.filter(item => item.id !== id);
     saveDraggClipboardItems(updated);
+    setItems(updated);
     if (selectedId === id) {
       setSelectedId(updated[0]?.id || null);
     }
@@ -287,9 +286,13 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
   };
 
   const handleClearAll = () => {
-    // Keep pinned items if any
+    // Keep pinned items when user clicks Clear All
     const pinnedItems = items.filter(item => pinnedIds.includes(item.id));
     saveDraggClipboardItems(pinnedItems);
+    setItems(pinnedItems);
+    if (selectedId && !pinnedIds.includes(selectedId)) {
+      setSelectedId(pinnedItems[0]?.id || null);
+    }
     if (showToast) showToast('Cleared unpinned items');
   };
 
@@ -303,7 +306,7 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
 
   return (
     <>
-      {/* Transparent Click-Outside Overlay (No Canvas Blur/Darkening) */}
+      {/* Transparent Click-Outside Overlay */}
       <div
         onClick={handleCloseShade}
         style={{
@@ -322,27 +325,19 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
           top: '0rem',
           right: '0rem',
           zIndex: 9999,
-          width: 'min(92vw, 360px)',
+          width: 'min(94vw, 360px)',
           background: typeof bgColor === 'string' && bgColor.startsWith('#') ? (bgColor.length === 7 ? `${bgColor}e6` : bgColor) : (bgColor || 'rgba(10, 10, 15, 0.95)'),
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '0px 0px 0px 12px',
+          borderRadius: '0px 0px 0px 14px',
           color: '#f8fafc',
-          padding: '14px 16px 12px 16px',
+          padding: '14px 16px 14px 16px',
           animation: isClosing ? 'draggNotifShadeSlideUp 0.26s cubic-bezier(0.4, 0, 0.2, 1) forwards' : 'draggNotifShadeSlideDown 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards',
           fontFamily: 'Inter, Segoe UI, system-ui, -apple-system, sans-serif'
         }}
       >
         <style>{`
-          @keyframes draggFadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          @keyframes draggFadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-          }
           @keyframes draggNotifShadeSlideDown {
             from { transform: translateY(-100%); }
             to { transform: translateY(0); }
@@ -352,15 +347,42 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
             to { transform: translateY(-100%); }
           }
           .win-clipboard-card {
-            transition: all 0.15s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
           }
           .win-clipboard-card:hover {
-            border-color: #38bdf8 !important;
-            background: rgba(30, 41, 59, 0.6) !important;
+            border-color: rgba(56, 189, 248, 0.5) !important;
+            background: rgba(30, 41, 59, 0.8) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(56, 189, 248, 0.15) !important;
+          }
+          .clipboard-action-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+          }
+          .clipboard-action-btn:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.4);
+            color: #38bdf8;
+          }
+          .clipboard-action-btn.delete-btn:hover {
+            background: rgba(244, 63, 94, 0.15);
+            border-color: rgba(244, 63, 94, 0.4);
+            color: #f43f5e;
+          }
+          .clipboard-action-btn.is-pinned {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.4);
           }
         `}</style>
 
-        {/* Simplified Clean Header Row */}
+        {/* Clean Header Row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '10px', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Clipboard size={15} color="#38bdf8" />
@@ -378,7 +400,7 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  padding: '3px 8px',
+                  padding: '3px 9px',
                   borderRadius: '6px',
                   transition: 'all 0.15s'
                 }}
@@ -390,6 +412,7 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
                   e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
                   e.currentTarget.style.color = '#94a3b8';
                 }}
+                title="Clear all unpinned items"
               >
                 Clear all
               </button>
@@ -413,17 +436,17 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
           </div>
         </div>
 
-        {/* 4. Clipboard Cards List */}
+        {/* Clipboard Cards List */}
         {sortedItems.length === 0 ? (
-          <div style={{ padding: '20px 12px', textAlign: 'center', color: '#64748b' }}>
-            <Clipboard size={24} style={{ marginBottom: '6px', opacity: 0.5, color: '#38bdf8' }} />
-            <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', margin: 0 }}>Clipboard is empty</p>
+          <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b' }}>
+            <Clipboard size={26} style={{ marginBottom: '6px', opacity: 0.5, color: '#38bdf8' }} />
+            <p style={{ fontSize: '0.84rem', fontWeight: 600, color: '#e2e8f0', margin: 0 }}>Clipboard is empty</p>
             <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
-              Copied elements or text snippets will appear here.
+              Copied elements & nodes will appear here with visual previews.
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '360px', overflowY: 'auto', paddingRight: '2px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '440px', overflowY: 'auto', paddingRight: '2px' }}>
             {sortedItems.map((item, idx) => {
               const isPinned = pinnedIds.includes(item.id);
               const isSelected = selectedId === item.id || (!selectedId && idx === 0);
@@ -440,70 +463,84 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
                   }}
                   style={{
                     position: 'relative',
-                    background: isSelected ? 'rgba(30, 41, 59, 0.7)' : 'rgba(18, 18, 24, 0.4)',
-                    border: isSelected ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.05)',
-                    boxShadow: isSelected ? '0 0 12px rgba(56, 189, 248, 0.25)' : 'none',
-                    borderRadius: '8px',
+                    background: isSelected ? 'rgba(30, 41, 59, 0.7)' : 'rgba(18, 18, 24, 0.5)',
+                    border: isSelected ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.06)',
+                    boxShadow: isSelected ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none',
+                    borderRadius: '10px',
                     padding: '12px 14px',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    minHeight: '70px',
                     boxSizing: 'border-box'
                   }}
                 >
-                  {/* Card Content Text & Three dots menu button */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                    <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#ffffff', wordBreak: 'break-word', lineHeight: '1.3' }}>
-                      {item.title || 'Copied Item'}
-                    </span>
+                  {/* Top Header Row: Icon + Title + Pin Button + Dedicated Delete Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '5px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Layers size={11} color="#38bdf8" />
+                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.title || 'Copied Card(s)'}
+                      </span>
+                    </div>
 
-                    <button
-                      onClick={(e) => handleDeleteItem(item.id, e)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer',
-                        padding: '2px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        opacity: 0.7
-                      }}
-                      title="Remove item"
-                      onMouseEnter={(e) => e.target.style.color = '#f43f5e'}
-                      onMouseLeave={(e) => e.target.style.color = '#94a3b8'}
-                    >
-                      <MoreHorizontal size={15} />
-                    </button>
+                    {/* Action Buttons: Pin & Dedicated Delete */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => togglePin(item.id, e)}
+                        className={`clipboard-action-btn ${isPinned ? 'is-pinned' : ''}`}
+                        title={isPinned ? 'Unpin item' : 'Pin item (keep on Clear All)'}
+                      >
+                        <Pin size={13} color={isPinned ? '#38bdf8' : '#94a3b8'} fill={isPinned ? '#38bdf8' : 'none'} style={{ transform: isPinned ? 'rotate(-45deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                      </button>
+
+                      <button
+                        onClick={(e) => handleDeleteItem(item.id, e)}
+                        className="clipboard-action-btn delete-btn"
+                        title="Delete this container"
+                      >
+                        <Trash2 size={13} color="#94a3b8" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Card Footer: Metadata info & Pin Icon */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', opacity: 0.8 }}>
-                      {item.cardCount > 0 ? `${item.cardCount} card${item.cardCount > 1 ? 's' : ''}` : 'Clip item'}
-                    </span>
+                  {/* Windows Taskbar Hover Style Visual Preview Box */}
+                  <div
+                    className="clipboard-preview-box"
+                    style={{
+                      background: '#090d16',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      padding: '4px',
+                      marginTop: '2px',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {item.previewImage ? (
+                      <img
+                        src={item.previewImage}
+                        alt="Clipboard Preview"
+                        style={{ width: '100%', height: '110px', objectFit: 'cover', borderRadius: '6px' }}
+                      />
+                    ) : item.cards && item.cards.length > 0 ? (
+                      <DraggClipMiniCanvasPreview cards={item.cards} connections={item.connections || []} />
+                    ) : (
+                      <div style={{ fontSize: '0.72rem', color: '#64748b', padding: '20px 0' }}>No visual preview</div>
+                    )}
+                  </div>
 
-                    <button
-                      onClick={(e) => togglePin(item.id, e)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: isPinned ? '#38bdf8' : '#94a3b8',
-                        cursor: 'pointer',
-                        padding: '2px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        transform: isPinned ? 'rotate(-45deg)' : 'none',
-                        transition: 'all 0.15s'
-                      }}
-                      title={isPinned ? 'Unpin' : 'Pin to top'}
-                      onMouseEnter={(e) => e.target.style.color = '#38bdf8'}
-                      onMouseLeave={(e) => e.target.style.color = isPinned ? '#38bdf8' : '#94a3b8'}
-                    >
-                      <Pin size={14} />
-                    </button>
+                  {/* Card Footer: Metadata info & Pinned Tag */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', fontSize: '0.68rem', color: '#94a3b8' }}>
+                    <span>
+                      {item.cardCount > 0 ? `${item.cardCount} card${item.cardCount > 1 ? 's' : ''}` : 'Clip item'}
+                      {item.connCount > 0 ? ` • ${item.connCount} connection${item.connCount > 1 ? 's' : ''}` : ''}
+                    </span>
+                    {isPinned && <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.65rem' }}>📌 Pinned</span>}
                   </div>
                 </div>
               );

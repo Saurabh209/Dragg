@@ -154,6 +154,9 @@ export default function CursorActionHint() {
       const isDraftConnecting = target.closest?.('[data-draft-connecting="true"]') ||
         document.querySelector('[data-draft-connecting="true"]');
 
+      const isHighlightActive = target.closest?.('[data-highlight-active="true"]') ||
+        document.querySelector('[data-highlight-active="true"]');
+
       const rawMenuEl = target.closest?.('.context-menu-popover, .context-menu, .dev-tool-context-menu, .dropdown-menu, [role="menu"]');
       const menuEl = (rawMenuEl && document.body.contains(rawMenuEl)) ? rawMenuEl : null;
 
@@ -190,6 +193,16 @@ export default function CursorActionHint() {
           leftActive: true,
           leftDisabled: false,
           rightLabel: 'View Only',
+          rightActive: true,
+          rightDisabled: true,
+          badgeText: ''
+        };
+      } else if (isHighlightActive) {
+        newHint = {
+          leftLabel: cardEl ? 'Select' : 'Pan',
+          leftActive: true,
+          leftDisabled: false,
+          rightLabel: 'No Action',
           rightActive: true,
           rightDisabled: true,
           badgeText: ''

@@ -507,6 +507,12 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     e.preventDefault();
     e.stopPropagation();
 
+    // Disable right click / context menu during active flow / ID highlight state
+    if (highlightedPathCardDepths || highlightedPathStartCardId) {
+      setContextMenu(null);
+      return;
+    }
+
     // Disable right click / context menu on resize handles or during active node connection drafting
     const isResizeHandle = e.target.closest('.resize-handle, .resize-handle-se, [class*="resize-handle"]');
     if (draftConnection || isResizeHandle) {
@@ -674,12 +680,14 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
     const newCards = [];
     const newSelectedIds = [];
+    const idMap = {};
 
     targetIds.forEach((id) => {
       const card = cards.find((c) => c.id === id);
       if (!card) return;
 
       const newId = Math.random().toString(36).substring(2, 11);
+      idMap[id] = newId;
 
       newCards.push({
         ...JSON.parse(JSON.stringify(card)),
@@ -692,10 +700,34 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       newSelectedIds.push(newId);
     });
 
+    // Remap group IDs if applicable
+    newCards.forEach((c) => {
+      if (c.groupId && idMap[c.groupId]) {
+        c.groupId = idMap[c.groupId];
+      }
+    });
+
+    // Find and duplicate connections between the duplicated cards
+    const newConnections = connections
+      .filter((conn) => idMap[conn.fromCardId] && idMap[conn.toCardId])
+      .map((conn) => {
+        return {
+          ...JSON.parse(JSON.stringify(conn)),
+          id: 'conn_' + Math.random().toString(36).substring(2, 11),
+          fromCardId: idMap[conn.fromCardId],
+          toCardId: idMap[conn.toCardId]
+        };
+      });
+
     if (newCards.length > 0) {
       setCards((prev) => [...prev, ...newCards]);
+      if (newConnections.length > 0) {
+        setConnections((prev) => [...prev, ...newConnections]);
+      }
       setSelectedCardIds(newSelectedIds);
-      showToast(`${newCards.length > 1 ? `${newCards.length} cards` : 'Card'} duplicated!`);
+      showToast(
+        `${newCards.length > 1 ? `${newCards.length} cards` : 'Card'}${newConnections.length > 0 ? ` & ${newConnections.length} connection(s)` : ''} duplicated!`
+      );
     }
   };
 
@@ -3565,6 +3597,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         data-canvas-root="true"
         data-view-only={isViewOnly ? "true" : "false"}
         data-draft-connecting={draftConnection ? "true" : "false"}
+        data-highlight-active={(highlightedPathCardDepths || highlightedPathStartCardId) ? "true" : "false"}
         onPointerDown={handleContainerMouseDown}
         onClick={handleCanvasClick}
         onContextMenu={handleContextMenu}
@@ -3908,7 +3941,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Outline</span>
           </button>
 
-          <button
+          {/* <button
             className={`board-card-delete-btn glass ${isClipboardSliderOpen ? 'active' : ''}`}
             style={{
               padding: '0.35rem 0.55rem',
@@ -3925,7 +3958,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           >
             <Clipboard size={13} color="#38bdf8" />
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Dragg Clipboard</span>
-          </button>
+          </button> */}
 
           <button
             className="board-card-delete-btn glass"
@@ -5107,7 +5140,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Multi-Card Selection ({selectedCardIds.length})
               </span>
-              <button
+              {/* <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard();
@@ -5116,7 +5149,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button>
+              </button> */}
 
               <button
                 className="context-menu-item"
@@ -5210,7 +5243,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Card Actions
               </span>
-              <button
+              {/* <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard(contextMenu.cardId);
@@ -5219,7 +5252,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button>
+              </button> */}
 
               <button
                 className="context-menu-item"
