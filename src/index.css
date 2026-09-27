@@ -3997,7 +3997,7 @@ h6 {
 }
 
 .dashboard-ambient-bg {
-  position: absolute;
+  position: fixed;
   top: -150px;
   left: 50%;
   transform: translateX(-50%);

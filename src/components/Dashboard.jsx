@@ -557,7 +557,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   return (
     <div className="dashboard-container">
       {/* Background Stage Light Rays (ReactBits) */}
-      <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
         <LightRays
           raysOrigin="top-center"
           raysColor="#6366f1"
