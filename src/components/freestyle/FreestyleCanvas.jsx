@@ -4,6 +4,7 @@ import LeftVerticalToolbar from '../shared/LeftVerticalToolbar';
 import { ArrowLeft, Lock, Unlock, Eye, EyeOff, Code2, X, Play, List, Search, Compass, Maximize2, Minimize2, Save, Copy, Target, Type, Image as ImageIcon, Plus, Trash2, Move, Check, Box, Link2, ZoomIn, ZoomOut, Maximize, Tag, Download, Clipboard, AlertTriangle, Sparkles, AlignLeft, GitFork } from 'lucide-react';
 import GroupContainer from '../shared/GroupContainer';
 import DraggClipboardSlider, { copyToDraggClipboard, getDraggClipboardItems } from '../shared/DraggClipboardSlider';
+import { toJpeg } from 'html-to-image';
 import { getDraggItem, setDraggItem, getDraggBoardPass, setDraggBoardPass } from '../../utils/draggStorage';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -433,12 +434,110 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     showToast('Click anywhere on canvas to place card (Esc to cancel)', 'info');
   };
 
+  // Place grabbed card or single pending placement card on canvas click
+  useEffect(() => {
+    if (!pendingPlacementCard) return;
+
+    const handlePlacementClick = (e) => {
+      // Ignore clicks on UI elements like floating toolbars or modals
+      if (
+        e.target.closest('.dragg-clipboard-slider') ||
+        e.target.closest('.floating-toolbar') ||
+        e.target.closest('.left-vertical-toolbar') ||
+        e.target.closest('.canvas-context-menu') ||
+        e.target.closest('button')
+      ) {
+        return;
+      }
+
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const dropCanvasX = (e.clientX - rect.left - pan.x) / zoom;
+      const dropCanvasY = (e.clientY - rect.top - pan.y) / zoom;
+
+      if (pendingPlacementCard.isClipboardGroup) {
+        // Drop grabbed clipboard group
+        const { minX, minY, cards: groupCards, connections: groupConns } = pendingPlacementCard;
+        const idMap = {};
+        const newCardIds = [];
+
+        const newCards = groupCards.map((c) => {
+          const newId = (c.type === 'system_node' ? 'sys_' : 'card_') + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+          idMap[c.id] = newId;
+          newCardIds.push(newId);
+
+          const relX = (c.x || 0) - minX;
+          const relY = (c.y || 0) - minY;
+
+          return {
+            ...c,
+            id: newId,
+            x: dropCanvasX + relX,
+            y: dropCanvasY + relY,
+            _id: undefined
+          };
+        });
+
+        // Remap group IDs if applicable
+        newCards.forEach((c) => {
+          if (c.groupId && idMap[c.groupId]) {
+            c.groupId = idMap[c.groupId];
+          }
+        });
+
+        // Remap connections
+        const newConns = (groupConns || []).map((conn) => {
+          return {
+            ...conn,
+            id: 'conn_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+            fromCardId: idMap[conn.fromCardId] || conn.fromCardId,
+            toCardId: idMap[conn.toCardId] || conn.toCardId,
+            _id: undefined
+          };
+        });
+
+        setCards((prev) => [...prev, ...newCards]);
+        if (newConns.length > 0) {
+          setConnections((prev) => [...prev, ...newConns]);
+        }
+        setSelectedCardIds(newCardIds);
+        setPendingPlacementCard(null);
+        showToast(`Placed ${newCards.length} item(s) on board!`, 'success');
+      } else {
+        // Drop single card while preserving type, features, cardMode, nodeLayout, dimensions
+        const cardToCopy = JSON.parse(JSON.stringify(pendingPlacementCard));
+        const newCardToPlace = {
+          ...cardToCopy,
+          id: (cardToCopy.type === 'system_node' ? 'sys_' : 'card_') + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          x: dropCanvasX - (cardToCopy.width || 250) / 2,
+          y: dropCanvasY - (cardToCopy.height || 180) / 2,
+          _id: undefined
+        };
+
+        setCards((prev) => [...prev, newCardToPlace]);
+        setSelectedCardIds([newCardToPlace.id]);
+        setPendingPlacementCard(null);
+        showToast('Card placed on board!', 'success');
+      }
+    };
+
+    // Delay attaching event slightly to avoid immediate trigger from click that initiated placement
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handlePlacementClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handlePlacementClick);
+    };
+  }, [pendingPlacementCard, pan, zoom]);
+
   // Cancel placement on Esc key
   useEffect(() => {
     const handleEscPlacement = (e) => {
       if (e.key === 'Escape' && pendingPlacementCard) {
         setPendingPlacementCard(null);
-        showToast('Card placement canceled.');
+        showToast('Placement canceled.');
       }
     };
     window.addEventListener('keydown', handleEscPlacement);
@@ -1226,22 +1325,31 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
     const cardsToCopy = cards.filter(c => targetCardIds.includes(c.id));
 
-    // Try capturing a low-res image screenshot thumbnail of target DOM card
+    // Try capturing a low-res image screenshot thumbnail of target DOM elements
     let previewImage = null;
     try {
-      let targetEl = null;
-      if (targetCardIds.length === 1) {
-        targetEl = document.querySelector(`[data-card-id="${targetCardIds[0]}"]`);
-      } else {
-        targetEl = document.querySelector('.group-selection-container') || containerRef.current;
-      }
-
+      // Capture the canvas container element
+      const targetEl = containerRef.current || document.querySelector('.freestyle-canvas-container');
       if (targetEl) {
         previewImage = await toJpeg(targetEl, {
-          quality: 0.35,
-          pixelRatio: 0.6,
+          quality: 0.4,
+          pixelRatio: 0.5,
           backgroundColor: boardBgColor || '#0a0a0c',
-          cacheBust: true
+          cacheBust: true,
+          filter: (node) => {
+            // Exclude floating overlays, context menus, and toolbars from clipboard preview snapshot
+            if (node.classList) {
+              if (
+                node.classList.contains('floating-toolbar') ||
+                node.classList.contains('canvas-context-menu') ||
+                node.classList.contains('dragg-clipboard-slider') ||
+                node.classList.contains('group-selection-container')
+              ) {
+                return false;
+              }
+            }
+            return true;
+          }
         }).catch(() => null);
       }
     } catch (err) {
@@ -1254,14 +1362,52 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     }
   };
 
+  const handleGrabFromDraggClipboard = (item) => {
+    if (!item || !Array.isArray(item.cards) || item.cards.length === 0) return;
+
+    // Deep clone card data to ensure all card properties (type, features, cardMode, dimensions, etc) are preserved
+    const clonedCards = JSON.parse(JSON.stringify(item.cards));
+
+    // Calculate bounding box center offset of grabbed item group
+    const xs = clonedCards.map(c => c.x || 0);
+    const ys = clonedCards.map(c => c.y || 0);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...clonedCards.map(c => (c.x || 0) + (c.width || 250)));
+    const maxY = Math.max(...clonedCards.map(c => (c.y || 0) + (c.height || 180)));
+    const groupW = maxX - minX;
+    const groupH = maxY - minY;
+
+    let initX = 150;
+    let initY = 150;
+    if (containerRef.current && lastPointerPosRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      initX = (lastPointerPosRef.current.x - rect.left - pan.x) / zoom - groupW / 2;
+      initY = (lastPointerPosRef.current.y - rect.top - pan.y) / zoom - groupH / 2;
+    }
+
+    setPlacementPos({ x: initX, y: initY });
+    setPendingPlacementCard({
+      isClipboardGroup: true,
+      minX,
+      minY,
+      width: groupW,
+      height: groupH,
+      cards: clonedCards,
+      connections: item.connections ? JSON.parse(JSON.stringify(item.connections)) : []
+    });
+
+    showToast(`Grabbed ${clonedCards.length} item(s)! Click anywhere on canvas to place (Esc to cancel)`, 'info');
+  };
+
   const handlePasteFromDraggClipboard = (item) => {
-    if (!item || !item.cards || item.cards.length === 0) return;
+    if (!item || !Array.isArray(item.cards) || item.cards.length === 0) return;
 
     const idMap = {};
     const newCardIds = [];
 
     // Calculate bounding center offset
-    const pastedCards = item.cards.map((c) => {
+    const pastedCards = (item.cards || []).map((c) => {
       const newId = (c.type === 'system_node' ? 'sys_' : 'card_') + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
       idMap[c.id] = newId;
       newCardIds.push(newId);
@@ -1292,15 +1438,15 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       };
     });
 
-    const updatedCardsList = [...cards, ...pastedCards];
-    const updatedConnList = [...connections, ...pastedConnections];
+    const currentCards = cards || [];
+    const currentConns = connections || [];
+
+    const updatedCardsList = [...currentCards, ...pastedCards];
+    const updatedConnList = [...currentConns, ...pastedConnections];
 
     setCards(updatedCardsList);
     setConnections(updatedConnList);
     setSelectedCardIds(newCardIds);
-
-    // Save state
-    saveBoardState(updatedCardsList, updatedConnList);
 
     if (showToast) {
       showToast(`Pasted ${pastedCards.length} card(s) from Dragg Clipboard!`);
@@ -3587,6 +3733,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         isOpen={isClipboardSliderOpen}
         onClose={() => setIsClipboardSliderOpen(false)}
         onPasteItem={handlePasteFromDraggClipboard}
+        onGrabItem={handleGrabFromDraggClipboard}
         showToast={showToast}
         bgColor={boardBgColor}
       />
@@ -3941,7 +4088,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Outline</span>
           </button>
 
-          {/* <button
+          {/* 
+          <button
             className={`board-card-delete-btn glass ${isClipboardSliderOpen ? 'active' : ''}`}
             style={{
               padding: '0.35rem 0.55rem',
@@ -3958,7 +4106,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           >
             <Clipboard size={13} color="#38bdf8" />
             <span className="header-btn-text" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Dragg Clipboard</span>
-          </button> */}
+          </button>
+          */}
 
           <button
             className="board-card-delete-btn glass"
@@ -4519,26 +4668,92 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                   top: placementPos.y,
                   pointerEvents: 'none',
                   zIndex: 99999,
-                  opacity: 0.75,
-                  filter: 'drop-shadow(0 12px 32px rgba(0, 0, 0, 0.5))',
+                  opacity: 0.78,
+                  filter: 'drop-shadow(0 14px 36px rgba(56, 189, 248, 0.4))',
                   transform: 'scale(1.01)'
                 }}
               >
-                <Card
-                  card={{
-                    ...pendingPlacementCard,
-                    x: 0,
-                    y: 0
-                  }}
-                  isSelected={false}
-                  onSelect={() => {}}
-                  onUpdate={() => {}}
-                  onDelete={() => {}}
-                  zoom={zoom}
-                  onStartConnection={() => {}}
-                  toolMode="select"
-                  isViewOnly={true}
-                />
+                {pendingPlacementCard.isClipboardGroup ? (
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: `${pendingPlacementCard.width || 260}px`,
+                      height: `${pendingPlacementCard.height || 180}px`,
+                      border: '2px dashed #38bdf8',
+                      borderRadius: '12px',
+                      background: 'rgba(56, 189, 248, 0.08)',
+                      padding: '8px',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '-26px',
+                        left: '0',
+                        background: '#38bdf8',
+                        color: '#090d16',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 4px 12px rgba(56, 189, 248, 0.5)'
+                      }}
+                    >
+                      <span>Grabbed ({pendingPlacementCard.cards.length} Items) - Click to Place</span>
+                    </div>
+
+                    {(pendingPlacementCard.cards || []).map((c) => {
+                      const relX = (c.x || 0) - (pendingPlacementCard.minX || 0);
+                      const relY = (c.y || 0) - (pendingPlacementCard.minY || 0);
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            position: 'absolute',
+                            left: `${relX}px`,
+                            top: `${relY}px`
+                          }}
+                        >
+                          <Card
+                            card={{
+                              ...c,
+                              x: 0,
+                              y: 0
+                            }}
+                            isSelected={false}
+                            onSelect={() => {}}
+                            onUpdate={() => {}}
+                            onDelete={() => {}}
+                            zoom={zoom}
+                            onStartConnection={() => {}}
+                            toolMode="select"
+                            isViewOnly={true}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <Card
+                    card={{
+                      ...pendingPlacementCard,
+                      x: 0,
+                      y: 0
+                    }}
+                    isSelected={false}
+                    onSelect={() => {}}
+                    onUpdate={() => {}}
+                    onDelete={() => {}}
+                    zoom={zoom}
+                    onStartConnection={() => {}}
+                    toolMode="select"
+                    isViewOnly={true}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -5140,7 +5355,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Multi-Card Selection ({selectedCardIds.length})
               </span>
-              {/* <button
+              {/* 
+              <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard();
@@ -5149,7 +5365,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button> */}
+              </button>
+              */}
 
               <button
                 className="context-menu-item"
@@ -5243,7 +5460,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Card Actions
               </span>
-              {/* <button
+              {/* 
+              <button
                 className="context-menu-item"
                 onClick={() => {
                   handleCopyToDraggClipboard(contextMenu.cardId);
@@ -5252,7 +5470,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               >
                 <Clipboard size={13} color="#38bdf8" />
                 <span>Copy to Dragg Clipboard</span>
-              </button> */}
+              </button>
+              */}
 
               <button
                 className="context-menu-item"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Calendar, Hand, FileText, Lock, Eye, Settings, Link2, Pencil, Image as ImageIcon, Info, X, Sparkles, MousePointerClick, BoxSelect, Layers, Palette, Compass, Type, Search, Clipboard } from 'lucide-react';
 import DraggClipboardSlider from './shared/DraggClipboardSlider';
+import LightRays from '../reactBitsComponents/stageLight.jsx';
 import { getDraggItem, setDraggItem, getDraggBoardPass, setDraggBoardPass, removeDraggBoardPass } from '../utils/draggStorage';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -555,6 +556,25 @@ function Dashboard({ onSelectBoard, showToast }) {
 
   return (
     <div className="dashboard-container">
+      {/* Background Stage Light Rays (ReactBits) */}
+      <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        <LightRays
+          raysOrigin="top-center"
+          raysColor="#6366f1"
+          raysSpeed={1}
+          lightSpread={0.5}
+          rayLength={3}
+          followMouse={true}
+          mouseInfluence={0.1}
+          noiseAmount={0}
+          distortion={0}
+          className="custom-rays"
+          pulsating={false}
+          fadeDistance={1}
+          saturation={1}
+        />
+      </div>
+
       {/* Background Ambient Glowing Orbs */}
       <div className="dashboard-ambient-bg" />
 

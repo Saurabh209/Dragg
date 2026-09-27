@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clipboard, Copy, Trash2, X, Sparkles, Plus, Check, Clock, Layers, ChevronUp, Bell, Pin, MoreHorizontal, Smile, Heart, BoxSelect } from 'lucide-react';
+import { Clipboard, Copy, Trash2, X, Sparkles, Plus, Check, Clock, Layers, ChevronUp, Bell, Pin, MoreHorizontal, Smile, Heart, BoxSelect, Hand, MousePointer } from 'lucide-react';
 import { getDraggItem, setDraggItem } from '../../utils/draggStorage';
 
 const MAX_CLIPBOARD_ITEMS = 6;
@@ -39,13 +39,38 @@ export const copyToDraggClipboard = (cardsToCopy, connectionsToCopy = [], preset
     summaryTitle = `${cardsToCopy.length} Cards ("${firstTitle.substring(0, 16)}..." + ${cardsToCopy.length - 1} more)`;
   }
 
-  // Deep clone card data
-  const clonedCards = JSON.parse(JSON.stringify(cardsToCopy));
+  // Deep clone card data, preserving all card fields
+  const clonedCards = cardsToCopy.map((c) => {
+    const raw = typeof c.toJS === 'function' ? c.toJS() : c;
+    return {
+      id: raw.id,
+      x: raw.x || 0,
+      y: raw.y || 0,
+      width: raw.width || 250,
+      height: raw.height || 180,
+      title: raw.title || 'Untitled Note',
+      content: raw.content || '',
+      tags: Array.isArray(raw.tags) ? [...raw.tags] : [],
+      color: raw.color || 'slate',
+      type: raw.type || 'note',
+      cardMode: raw.cardMode || 'notes',
+      features: raw.features ? JSON.parse(JSON.stringify(raw.features)) : undefined,
+      nodeLayout: raw.nodeLayout || 'four-node',
+      badge: raw.badge ? JSON.parse(JSON.stringify(raw.badge)) : null,
+      isStartNode: Boolean(raw.isStartNode),
+      drawingDataUrl: raw.drawingDataUrl || '',
+      attachments: Array.isArray(raw.attachments) ? JSON.parse(JSON.stringify(raw.attachments)) : [],
+      nodeType: raw.nodeType || undefined,
+      description: raw.description || undefined,
+      highlightId: raw.highlightId || undefined,
+      highlightIds: Array.isArray(raw.highlightIds) ? [...raw.highlightIds] : undefined
+    };
+  });
   
-  // Find valid connections between selected cards
+  // Find valid connections related to copied cards
   const cardIdSet = new Set(clonedCards.map(c => c.id));
   const validConnections = (connectionsToCopy || []).filter(
-    conn => cardIdSet.has(conn.fromCardId) && cardIdSet.has(conn.toCardId)
+    conn => cardIdSet.has(conn.fromCardId) || cardIdSet.has(conn.toCardId)
   );
   const clonedConnections = JSON.parse(JSON.stringify(validConnections));
 
@@ -67,142 +92,7 @@ export const copyToDraggClipboard = (cardsToCopy, connectionsToCopy = [], preset
   return newItem;
 };
 
-// Mini Canvas Replica Preview Component for Copied Cards & Connections (Windows Hover Preview Style)
-function DraggClipMiniCanvasPreview({ cards = [], connections = [] }) {
-  if (!cards || cards.length === 0) return null;
-
-  const xs = cards.map(c => c.x || 0);
-  const ys = cards.map(c => c.y || 0);
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-  const maxX = Math.max(...cards.map(c => (c.x || 0) + (c.width || 220)));
-  const maxY = Math.max(...cards.map(c => (c.y || 0) + (c.height || 160)));
-
-  const contentW = Math.max(maxX - minX, 180);
-  const contentH = Math.max(maxY - minY, 130);
-
-  const containerH = 110;
-  const scale = Math.min(280 / contentW, (containerH - 20) / contentH, 0.55);
-
-  const cardMap = {};
-  cards.forEach(c => {
-    cardMap[c.id] = {
-      cx: ((c.x || 0) - minX) * scale + 14 + ((c.width || 220) * scale) / 2,
-      cy: ((c.y || 0) - minY) * scale + 14 + ((c.height || 160) * scale) / 2
-    };
-  });
-
-  const getCardColor = (c) => {
-    const colMap = {
-      indigo: '#6366f1',
-      cyan: '#06b6d4',
-      emerald: '#10b981',
-      amber: '#f59e0b',
-      rose: '#f43f5e',
-      slate: '#64748b'
-    };
-    if (c.color && colMap[c.color]) return colMap[c.color];
-    if (c.preset === 'system_design' || c.type === 'system_node') return '#06b6d4';
-    return '#6366f1';
-  };
-
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: `${containerH}px`,
-        position: 'relative',
-        background: 'rgba(9, 13, 22, 0.95)',
-        borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        overflow: 'hidden',
-        boxShadow: 'inset 0 0 16px rgba(0, 0, 0, 0.8)',
-        boxSizing: 'border-box'
-      }}
-    >
-      {/* Micro Grid Dots */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.25) 1px, transparent 1px)',
-          backgroundSize: '10px 10px',
-          opacity: 0.5
-        }}
-      />
-
-      {/* Mini SVG Connections */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-        {connections.map((conn, i) => {
-          const fromPos = cardMap[conn.fromCardId];
-          const toPos = cardMap[conn.toCardId];
-          if (!fromPos || !toPos) return null;
-          return (
-            <line
-              key={conn.id || i}
-              x1={fromPos.cx}
-              y1={fromPos.cy}
-              x2={toPos.cx}
-              y2={toPos.cy}
-              stroke={conn.color || '#38bdf8'}
-              strokeWidth="2"
-              strokeDasharray={conn.style === 'dashed' ? '3 3' : 'none'}
-              opacity="0.85"
-            />
-          );
-        })}
-      </svg>
-
-      {/* Mini Cards Replica */}
-      {cards.map((c) => {
-        const left = ((c.x || 0) - minX) * scale + 10;
-        const top = ((c.y || 0) - minY) * scale + 10;
-        const w = Math.max((c.width || 220) * scale, 42);
-        const h = Math.max((c.height || 160) * scale, 28);
-        const color = getCardColor(c);
-        const titleText = c.title || c.name || 'Card';
-
-        return (
-          <div
-            key={c.id}
-            style={{
-              position: 'absolute',
-              left: `${left}px`,
-              top: `${top}px`,
-              width: `${w}px`,
-              height: `${h}px`,
-              background: `linear-gradient(135deg, ${color}33 0%, rgba(15, 23, 42, 0.95) 100%)`,
-              border: `1.5px solid ${color}dd`,
-              borderRadius: '6px',
-              padding: '3px 5px',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              boxShadow: `0 3px 8px ${color}44, 0 1px 3px rgba(0,0,0,0.6)`
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.58rem',
-                fontWeight: 700,
-                color: '#f8fafc',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                lineHeight: 1.1
-              }}
-            >
-              {titleText}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, showToast, bgColor = '#0a0a0c' }) {
+export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, onGrabItem, showToast, bgColor = '#0a0a0c' }) {
   const [items, setItems] = useState(getDraggClipboardItems());
   const [pinnedIds, setPinnedIds] = useState(() => {
     try {
@@ -457,9 +347,6 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
                   className="win-clipboard-card"
                   onClick={() => {
                     setSelectedId(item.id);
-                    if (onPasteItem) onPasteItem(item);
-                    setCopiedIndex(idx);
-                    setTimeout(() => setCopiedIndex(null), 1200);
                   }}
                   style={{
                     position: 'relative',
@@ -486,8 +373,48 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
                       </span>
                     </div>
 
-                    {/* Action Buttons: Pin & Dedicated Delete */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                    {/* Action Buttons: Grab, Pin & Dedicated Delete */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(item.id);
+                          if (onGrabItem) {
+                            onGrabItem(item);
+                          } else if (onPasteItem) {
+                            onPasteItem(item);
+                          }
+                          handleCloseShade();
+                        }}
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(99, 102, 241, 0.3) 100%)',
+                          border: '1px solid rgba(56, 189, 248, 0.5)',
+                          color: '#38bdf8',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '3px 9px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 2px 8px rgba(56, 189, 248, 0.2)',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(56, 189, 248, 0.4) 0%, rgba(99, 102, 241, 0.5) 100%)';
+                          e.currentTarget.style.transform = 'scale(1.04)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(99, 102, 241, 0.3) 100%)';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        title="Grab item to place anywhere on board"
+                      >
+                        <Hand size={12} color="#38bdf8" />
+                        <span>Grab</span>
+                      </button>
+
                       <button
                         onClick={(e) => togglePin(item.id, e)}
                         className={`clipboard-action-btn ${isPinned ? 'is-pinned' : ''}`}
@@ -527,10 +454,8 @@ export default function DraggClipboardSlider({ isOpen, onClose, onPasteItem, sho
                         alt="Clipboard Preview"
                         style={{ width: '100%', height: '110px', objectFit: 'cover', borderRadius: '6px' }}
                       />
-                    ) : item.cards && item.cards.length > 0 ? (
-                      <DraggClipMiniCanvasPreview cards={item.cards} connections={item.connections || []} />
                     ) : (
-                      <div style={{ fontSize: '0.72rem', color: '#64748b', padding: '20px 0' }}>No visual preview</div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b', padding: '20px 0' }}>No preview snapshot</div>
                     )}
                   </div>
 
