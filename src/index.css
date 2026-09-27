@@ -43,6 +43,11 @@
   user-select: none;
 }
 
+html, body, #root {
+  background-color: #0a0a0c !important;
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-body);
   background-color: var(--bg-dark);
@@ -3997,7 +4002,7 @@ h6 {
 }
 
 .dashboard-ambient-bg {
-  position: fixed;
+  position: absolute;
   top: -150px;
   left: 50%;
   transform: translateX(-50%);
@@ -4855,6 +4860,12 @@ h6 {
     transform: translate(-50%, -50%) scale(1.7);
     opacity: 0;
   }
+}
+
+/* Universal Dark Background Lock */
+html, body, #root, .board-workspace-wrapper, .dashboard-container {
+  background-color: #0a0a0c !important;
+  color-scheme: dark;
 }
 
 

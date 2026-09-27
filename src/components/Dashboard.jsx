@@ -556,25 +556,6 @@ function Dashboard({ onSelectBoard, showToast }) {
 
   return (
     <div className="dashboard-container">
-      {/* Background Stage Light Rays (ReactBits) */}
-      <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-        <LightRays
-          raysOrigin="top-center"
-          raysColor="#6366f1"
-          raysSpeed={1}
-          lightSpread={0.5}
-          rayLength={3}
-          followMouse={true}
-          mouseInfluence={0.1}
-          noiseAmount={0}
-          distortion={0}
-          className="custom-rays"
-          pulsating={false}
-          fadeDistance={1}
-          saturation={1}
-        />
-      </div>
-
       {/* Background Ambient Glowing Orbs */}
       <div className="dashboard-ambient-bg" />
 
