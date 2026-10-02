@@ -140,7 +140,11 @@ function Card({
     completedStatus: true,
     connectPorts: true
   };
-  const isHeadingCard = !features.notes && !features.sketch && !features.attachments && !features.tags;
+  const isHeadingCard = card.cardVariant === 'minimalCard'
+    ? true
+    : card.cardVariant === 'featureCard'
+    ? false
+    : (!features.notes && !features.sketch && !features.attachments && !features.tags);
   const hasBodyContent = !isHeadingCard;
   const dimStyle = isDimmed ? {
     opacity: 0.18,

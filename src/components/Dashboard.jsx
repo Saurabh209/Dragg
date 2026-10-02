@@ -93,7 +93,7 @@ function Dashboard({ onSelectBoard, showToast }) {
   const fetchBoards = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/board`);
+      const res = await fetch(`${API_BASE}/freestyle_board`);
       if (!res.ok) throw new Error('Failed to fetch canvases');
       const data = await res.json();
       const sorted = Array.isArray(data) ? data.sort((a, b) => {
@@ -115,7 +115,7 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (!newBoardName.trim()) return;
 
     try {
-      const primaryEndpoint = `${API_BASE}/board`;
+      const primaryEndpoint = `${API_BASE}/freestyle_board`;
 
       const payload = { 
         name: newBoardName.trim(),
@@ -176,7 +176,7 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (board.protectionMode === 'full') {
       if (savedHash) {
         try {
-          const res = await fetch(`${API_BASE}/board/${board._id}/verify`, {
+          const res = await fetch(`${API_BASE}/freestyle_board/${board._id}/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: savedHash }),
@@ -217,7 +217,7 @@ function Dashboard({ onSelectBoard, showToast }) {
     if (!boardToUnlock) return;
 
     try {
-      const endpoint = `${API_BASE}/board/${boardToUnlock._id}/verify`;
+      const endpoint = `${API_BASE}/freestyle_board/${boardToUnlock._id}/verify`;
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -255,7 +255,7 @@ function Dashboard({ onSelectBoard, showToast }) {
         headers['x-board-password'] = deletePassword;
       }
 
-      const res = await fetch(`${API_BASE}/board/${id}`, { 
+      const res = await fetch(`${API_BASE}/freestyle_board/${id}`, { 
         method: 'DELETE',
         headers
       });
@@ -505,7 +505,7 @@ function Dashboard({ onSelectBoard, showToast }) {
             zoom: pb.zoom || 0.85
           };
 
-          const createRes = await fetch(`${API_BASE}/board`, {
+          const createRes = await fetch(`${API_BASE}/freestyle_board`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -515,7 +515,7 @@ function Dashboard({ onSelectBoard, showToast }) {
           const data = await createRes.json();
 
           if (pb.cards && pb.cards.length > 0) {
-            await fetch(`${API_BASE}/board/${data._id}`, {
+            await fetch(`${API_BASE}/freestyle_board/${data._id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ cards: pb.cards, connections: pb.connections || [] }),

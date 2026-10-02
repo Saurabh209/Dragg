@@ -34,7 +34,7 @@ function BoardDispatcher({ boardId, boardPassword, forceViewOnly, onBack, showTo
     }
 
     setIsLoading(true);
-    fetch(`${API_BASE}/board/${boardId}`)
+    fetch(`${API_BASE}/freestyle_board/${boardId}`)
       .then((res) => res.json())
       .then((data) => {
         setBoardPreset(data.preset || 'freestyle');

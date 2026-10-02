@@ -1205,7 +1205,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
 
   const getBoardEndpoint = () => {
-    return `${API_BASE}/board/${boardId}`;
+    return `${API_BASE}/freestyle_board/${boardId}`;
   };
 
   const [boardPreset, setBoardPreset] = useState(() => (boardId.startsWith('sd_') ? 'system_design' : 'freestyle'));
@@ -1662,7 +1662,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         return;
       }
 
-      let res = await fetch(`${API_BASE}/board/${boardId}`, {
+      let res = await fetch(`${API_BASE}/freestyle_board/${boardId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -1673,7 +1673,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
       // If PATCH is not supported by endpoint, fallback to PUT full payload
       if (!res.ok && (res.status === 405 || res.status === 404)) {
-        res = await fetch(`${API_BASE}/board/${boardId}`, {
+        res = await fetch(`${API_BASE}/freestyle_board/${boardId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -2419,6 +2419,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       type,
       cardMode,
       features,
+      cardVariant: cardType === 'minimal' ? 'minimalCard' : 'featureCard',
       nodeLayout: cardNodeLayout
     };
 
@@ -2464,6 +2465,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         completedStatus: false,
         connectPorts: true
       },
+      cardVariant: 'minimalCard',
       nodeLayout: 'four-node'
     };
 
@@ -2515,6 +2517,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       type: 'note',
       cardMode,
       features: { ...cardFeatures },
+      cardVariant: !hasBodyContent ? 'minimalCard' : 'featureCard',
       nodeLayout: cardNodeLayout
     };
 
@@ -3568,7 +3571,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const handleUnlockEditing = async (e) => {
     e.preventDefault();
     try {
-      const endpoint = `${API_BASE}/board/${boardId}/verify`;
+      const endpoint = `${API_BASE}/freestyle_board/${boardId}/verify`;
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -4872,7 +4875,6 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         {/* Floating Canvas Toolbar controls */}
         {!isViewOnly && (
           <LeftVerticalToolbar
-            onOpenSystemCatalog={boardPreset === 'system_design' ? () => setIsSystemCatalogOpen(true) : undefined}
             onAddCardDirect={handleAddCardDirect}
             onAddCardCustom={handleAddCard}
             gridType={gridType}
