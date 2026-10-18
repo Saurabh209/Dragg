@@ -181,6 +181,8 @@ function Card({
 
   const cardRef = useRef(null);
   const canvasRef = useRef(null);
+  const imgRef = useRef(null);
+  const imageRatioRef = useRef(card.aspectRatio || null);
   const editorRef = useRef(null);
   const savedSelectionRef = useRef(null);
   const isDrawingRef = useRef(false);
@@ -307,6 +309,8 @@ function Card({
       e.target.closest('.color-dot') ||
       e.target.closest('.card-sketch-toolbar') ||
       e.target.closest('.notes-format-bar') ||
+      e.target.closest('.tiptap-toolbar-wrapper') ||
+      e.target.closest('.tiptap-scroll-btn') ||
       (toolMode !== 'connector' && (
         e.target.tagName === 'INPUT' ||
         e.target.tagName === 'TEXTAREA' ||
@@ -368,8 +372,8 @@ function Card({
     e.stopPropagation();
     onSelect(card.id);
 
-    const minW = isHeadingCard ? 100 : MIN_WIDTH;
-    const minH = isHeadingCard ? 36 : MIN_HEIGHT;
+    const minW = isHeadingCard ? 100 : (isImageCard ? 120 : MIN_WIDTH);
+    const minH = isHeadingCard ? 36 : (isImageCard ? 80 : MIN_HEIGHT);
 
     const startX = card.x;
     const startY = card.y;
@@ -378,6 +382,28 @@ function Card({
 
     const clientStartX = e.clientX;
     const clientStartY = e.clientY;
+
+    // Detect image aspect ratio if this is an image card
+    let imgRatio = null;
+    let headerH = 42;
+    const padX = 0;
+    const padY = 0;
+
+    if (isImageCard) {
+      const imgEl = imgRef.current || cardRef.current?.querySelector('.card-image-content img');
+      if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
+        imgRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+      } else if (card.aspectRatio) {
+        imgRatio = card.aspectRatio;
+      } else if (imageRatioRef.current) {
+        imgRatio = imageRatioRef.current;
+      }
+
+      const headerEl = cardRef.current?.querySelector('.card-header');
+      if (headerEl) {
+        headerH = headerEl.offsetHeight;
+      }
+    }
 
     const handleMouseMove = (moveEvent) => {
       let dx = (moveEvent.clientX - clientStartX) / zoom;
@@ -388,24 +414,85 @@ function Card({
       let nextW = startWidth;
       let nextH = startHeight;
 
-      // Horizontal resizing logic
-      if (direction.includes('r')) {
-        nextW = Math.max(minW, startWidth + dx);
-      } else if (direction.includes('l')) {
-        const maxDx = startWidth - minW;
-        const actualDx = Math.min(maxDx, dx);
-        nextW = startWidth - actualDx;
-        nextX = startX + actualDx;
-      }
+      if (isImageCard && imgRatio) {
+        const extraW = padX;
+        const extraH = headerH + padY;
+        const startImgW = Math.max(80, startWidth - extraW);
 
-      // Vertical resizing logic
-      if (direction.includes('b')) {
-        nextH = Math.max(minH, startHeight + dy);
-      } else if (direction.includes('t')) {
-        const maxDy = startHeight - minH;
-        const actualDy = Math.min(maxDy, dy);
-        nextH = startHeight - actualDy;
-        nextY = startY + actualDy;
+        let deltaW = 0;
+        if (direction === 'br') {
+          // Bottom-Right corner
+          const changeX = dx;
+          const changeY = dy * imgRatio;
+          deltaW = Math.abs(changeX) >= Math.abs(changeY) ? changeX : changeY;
+
+          const newImgW = Math.max(80, startImgW + deltaW);
+          const newImgH = Math.round(newImgW / imgRatio);
+          nextW = newImgW + extraW;
+          nextH = newImgH + extraH;
+          nextX = startX;
+          nextY = startY;
+        } else if (direction === 'bl') {
+          // Bottom-Left corner: anchor top-right
+          const rightEdge = startX + startWidth;
+          const changeX = -dx;
+          const changeY = dy * imgRatio;
+          deltaW = Math.abs(changeX) >= Math.abs(changeY) ? changeX : changeY;
+
+          const newImgW = Math.max(80, startImgW + deltaW);
+          const newImgH = Math.round(newImgW / imgRatio);
+          nextW = newImgW + extraW;
+          nextH = newImgH + extraH;
+          nextX = rightEdge - nextW;
+          nextY = startY;
+        } else if (direction === 'tr') {
+          // Top-Right corner: anchor bottom-left
+          const bottomEdge = startY + startHeight;
+          const changeX = dx;
+          const changeY = -dy * imgRatio;
+          deltaW = Math.abs(changeX) >= Math.abs(changeY) ? changeX : changeY;
+
+          const newImgW = Math.max(80, startImgW + deltaW);
+          const newImgH = Math.round(newImgW / imgRatio);
+          nextW = newImgW + extraW;
+          nextH = newImgH + extraH;
+          nextX = startX;
+          nextY = bottomEdge - nextH;
+        } else if (direction === 'tl') {
+          // Top-Left corner: anchor bottom-right
+          const rightEdge = startX + startWidth;
+          const bottomEdge = startY + startHeight;
+          const changeX = -dx;
+          const changeY = -dy * imgRatio;
+          deltaW = Math.abs(changeX) >= Math.abs(changeY) ? changeX : changeY;
+
+          const newImgW = Math.max(80, startImgW + deltaW);
+          const newImgH = Math.round(newImgW / imgRatio);
+          nextW = newImgW + extraW;
+          nextH = newImgH + extraH;
+          nextX = rightEdge - nextW;
+          nextY = bottomEdge - nextH;
+        }
+      } else {
+        // Horizontal resizing logic (standard cards)
+        if (direction.includes('r')) {
+          nextW = Math.max(minW, startWidth + dx);
+        } else if (direction.includes('l')) {
+          const maxDx = startWidth - minW;
+          const actualDx = Math.min(maxDx, dx);
+          nextW = startWidth - actualDx;
+          nextX = startX + actualDx;
+        }
+
+        // Vertical resizing logic (standard cards)
+        if (direction.includes('b')) {
+          nextH = Math.max(minH, startHeight + dy);
+        } else if (direction.includes('t')) {
+          const maxDy = startHeight - minH;
+          const actualDy = Math.min(maxDy, dy);
+          nextH = startHeight - actualDy;
+          nextY = startY + actualDy;
+        }
       }
 
       onUpdate(card.id, {
@@ -1057,7 +1144,10 @@ function Card({
         </div>,
         document.body
       )}
-      <div className="card-content-container">
+      <div
+        className="card-content-container"
+        style={isCustomColor ? { borderColor: isSelected ? effectiveColor : hexToRgba(effectiveColor, 0.45) } : {}}
+      >
         {card.type === 'system_node' ? (
           <div
             className="system-node-card-body"
@@ -1205,6 +1295,60 @@ function Card({
               />
 
               <div className="card-header-badge-slot" ref={badgeSlotRef}>
+                {card.isImageUploading && (
+                  <div
+                    className="card-syncing-pill"
+                    title="Optimizing & syncing image to cloud in background..."
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      userSelect: 'none',
+                      flexShrink: 0
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        border: '1.5px solid rgba(56, 189, 248, 0.3)',
+                        borderTopColor: '#38bdf8',
+                        animation: 'draggSpinLoader 0.7s linear infinite'
+                      }}
+                    />
+                    <span>Syncing...</span>
+                  </div>
+                )}
+                {card.uploadError && (
+                  <div
+                    className="card-syncing-pill"
+                    title="Image cloud sync failed. Image is stored locally in session."
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      background: 'rgba(244, 63, 94, 0.15)',
+                      color: '#f43f5e',
+                      border: '1px solid rgba(244, 63, 94, 0.3)',
+                      userSelect: 'none',
+                      flexShrink: 0
+                    }}
+                  >
+                    <span>Sync failed</span>
+                  </div>
+                )}
                 {currentBadge ? (
                   <button
                     type="button"
@@ -1286,7 +1430,29 @@ function Card({
         {isImageCard ? (
           /* Render Image Card Content */
           <div className="card-image-content">
-            <img src={card.imageUrl} alt={card.title || 'whiteboard asset'} />
+            <img
+              ref={imgRef}
+              src={card.imageUrl}
+              alt={card.title || 'whiteboard asset'}
+              onLoad={(e) => {
+                const nw = e.target.naturalWidth;
+                const nh = e.target.naturalHeight;
+                if (nw && nh) {
+                  const ratio = nw / nh;
+                  imageRatioRef.current = ratio;
+
+                  // Auto-fit height to image ratio for edge-to-edge image
+                  const headerEl = cardRef.current?.querySelector('.card-header');
+                  const headerH = headerEl ? headerEl.offsetHeight : 42;
+                  const currentW = card.width || 300;
+                  const expectedH = Math.round(currentW / ratio + headerH);
+
+                  if (Math.abs((card.height || 220) - expectedH) > 4) {
+                    onUpdate(card.id, { height: expectedH, aspectRatio: ratio });
+                  }
+                }
+              }}
+            />
           </div>
         ) : (
           /* Render Tab Content */

@@ -121,6 +121,14 @@ export default function CursorActionHint() {
         return;
       }
 
+      // Suppress hint section if image uploading or loader container is active to prevent overlapping
+      const isUploadingImage = target.closest?.('[data-uploading-image="true"]') ||
+        document.querySelector('[data-uploading-image="true"], .ghost-card-uploading, [data-loader-container="true"]');
+      if (isUploadingImage) {
+        if (visible) setVisible(false);
+        return;
+      }
+
       // Strip browser title tooltips inside canvas to ensure CursorActionHint is the single source of truth
       const titleEl = target.closest?.('[title]');
       if (titleEl && titleEl.getAttribute('title')) {
@@ -408,6 +416,15 @@ export default function CursorActionHint() {
         const badgeWidth = wrapperRef.current ? wrapperRef.current.offsetWidth || 85 : 85;
         const badgeHeight = wrapperRef.current ? wrapperRef.current.offsetHeight || 30 : 30;
         const GAP = 12;
+
+        const activeLoader = document.querySelector('.ghost-card-uploading, [data-loader-container="true"], [data-uploading-image="true"]');
+        if (activeLoader) {
+          if (wrapperRef.current) {
+            wrapperRef.current.style.opacity = '0';
+          }
+        } else if (wrapperRef.current && wrapperRef.current.style.opacity === '0') {
+          wrapperRef.current.style.opacity = '1';
+        }
 
         const obstacle = cachedObstacleRef.current;
         let finalTargetX = mouseX - badgeWidth / 2;

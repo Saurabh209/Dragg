@@ -6,6 +6,7 @@ import GroupContainer from '../shared/GroupContainer';
 import DraggClipboardSlider, { copyToDraggClipboard, getDraggClipboardItems } from '../shared/DraggClipboardSlider';
 import { toJpeg } from 'html-to-image';
 import { getDraggItem, setDraggItem, getDraggBoardPass, setDraggBoardPass } from '../../utils/draggStorage';
+import { compressImage } from '../../utils/imageCompressor';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -402,24 +403,30 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const [placementPos, setPlacementPos] = useState({ x: 150, y: 150 });
   const lastPointerPosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
+  // Floating Cursor Loader state for image upload
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadingImageInfo, setUploadingImageInfo] = useState(null);
+
   useEffect(() => {
     const handleGlobalPointerMove = (e) => {
       lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
 
-      if (pendingPlacementCard && containerRef.current) {
+      if ((pendingPlacementCard || isUploadingImage) && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
         const canvasX = (e.clientX - rect.left - pan.x) / zoom;
         const canvasY = (e.clientY - rect.top - pan.y) / zoom;
+        const cardW = pendingPlacementCard?.width || 300;
+        const cardH = pendingPlacementCard?.height || 220;
         setPlacementPos({
-          x: canvasX - (pendingPlacementCard.width || 250) / 2,
-          y: canvasY - (pendingPlacementCard.height || 180) / 2,
+          x: canvasX - cardW / 2,
+          y: canvasY - cardH / 2,
         });
       }
     };
 
     window.addEventListener('pointermove', handleGlobalPointerMove);
     return () => window.removeEventListener('pointermove', handleGlobalPointerMove);
-  }, [pendingPlacementCard, pan, zoom]);
+  }, [pendingPlacementCard, isUploadingImage, pan, zoom]);
 
   const startCardPlacement = (newCard) => {
     let initX = 150;
@@ -506,9 +513,11 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       } else {
         // Drop single card while preserving type, features, cardMode, nodeLayout, dimensions
         const cardToCopy = JSON.parse(JSON.stringify(pendingPlacementCard));
+        const cardIdToUse = cardToCopy.id || ((cardToCopy.type === 'system_node' ? 'sys_' : 'card_') + Date.now().toString(36) + Math.random().toString(36).substring(2, 6));
         const newCardToPlace = {
           ...cardToCopy,
-          id: (cardToCopy.type === 'system_node' ? 'sys_' : 'card_') + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          id: cardIdToUse,
+          uploadTrackingId: cardToCopy.uploadTrackingId || cardIdToUse,
           x: dropCanvasX - (cardToCopy.width || 250) / 2,
           y: dropCanvasY - (cardToCopy.height || 180) / 2,
           _id: undefined
@@ -1602,6 +1611,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const handleSaveBoard = async (isManual = false) => {
     if (isViewOnly) return;
     setSaveStatus(isManual ? 'saving' : 'auto-saving');
+    console.log("latestDataRef:",latestDataRef)
     try {
       const current = latestDataRef.current;
       const saved = lastSavedStateRef.current || {
@@ -1661,6 +1671,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         unsavedSinceRef.current = null;
         return;
       }
+
+      console.log('[FRONTEND AUTO-SAVE] Sending payload to backend DB:', deltaPayload);
 
       let res = await fetch(`${API_BASE}/freestyle_board/${boardId}`, {
         method: 'PATCH',
@@ -2365,29 +2377,15 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         completedStatus: true,
         connectPorts: true
       };
-    } else if (cardType === 'code') {
-      cardMode = 'code';
-      features = {
-        notes: false,
-        sketch: false,
-        attachments: false,
-        tags: true,
-        colorPalette: true,
-        completedStatus: true,
-        connectPorts: true
-      };
     } else if (cardType === 'image') {
+      setShowAddCardModal(false);
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*';
       fileInput.onchange = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          handleUploadImage(event.target.result);
-        };
-        reader.readAsDataURL(file);
+        handleUploadImage(file);
       };
       fileInput.click();
       return;
@@ -2525,39 +2523,208 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     startCardPlacement(newCard);
   };
 
-  // Add image card
-  const handleUploadImage = (base64Data) => {
+  // Add image card with optimistic local preview & background cloud sync
+  const handleUploadImage = async (fileOrData) => {
     if (isViewOnly) {
       showToast('Board is locked. Enter password to upload images.', 'error');
       return;
     }
-    const width = 300;
-    const height = 220;
+
+    let localPreviewUrl = null;
+    let fileName = '';
+
+    if (fileOrData instanceof File || fileOrData instanceof Blob) {
+      fileName = fileOrData.name || 'image';
+      try {
+        localPreviewUrl = URL.createObjectURL(fileOrData);
+      } catch (e) {
+        console.warn('Could not create object URL for preview:', e);
+      }
+    } else if (typeof fileOrData === 'string') {
+      localPreviewUrl = fileOrData;
+      fileName = 'image';
+    }
+
+    // Measure image dimensions immediately in memory (<2ms with local blob preview URL)
+    let cardW = 340;
+    let cardH = 240;
+    let imageAspect = null;
+
+    if (localPreviewUrl) {
+      try {
+        await new Promise((resolve) => {
+          const probe = new Image();
+          probe.onload = () => {
+            if (probe.naturalWidth && probe.naturalHeight) {
+              imageAspect = probe.naturalWidth / probe.naturalHeight;
+              const imgH = cardW / imageAspect;
+              cardH = Math.round(imgH + 42);
+            }
+            resolve();
+          };
+          probe.onerror = resolve;
+          probe.src = localPreviewUrl;
+        });
+      } catch (e) {
+        console.warn('Could not probe local image dimensions:', e);
+      }
+    }
+
     let spawnX = 150;
     let spawnY = 150;
 
-    if (containerRef.current) {
+    if (lastPointerPosRef.current && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const centerCoords = screenToCanvas(rect.left + rect.width / 2 - (width * zoom) / 2, rect.top + rect.height / 2 - (height * zoom) / 2);
+      const canvasX = (lastPointerPosRef.current.x - rect.left - pan.x) / zoom;
+      const canvasY = (lastPointerPosRef.current.y - rect.top - pan.y) / zoom;
+      spawnX = canvasX - cardW / 2;
+      spawnY = canvasY - cardH / 2;
+    } else if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const centerCoords = screenToCanvas(
+        rect.left + rect.width / 2 - (cardW * zoom) / 2,
+        rect.top + rect.height / 2 - (cardH * zoom) / 2
+      );
       spawnX = centerCoords.x;
       spawnY = centerCoords.y;
     }
 
+    const cardId = 'card_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const cardTitle = fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Image Note';
+
     const newImageCard = {
-      id: Math.random().toString(36).substring(2, 11),
+      id: cardId,
+      uploadTrackingId: cardId,
       x: spawnX,
       y: spawnY,
-      width,
-      height,
-      title: 'Image Note',
+      width: cardW,
+      height: cardH,
+      aspectRatio: imageAspect,
+      title: cardTitle || 'Image Note',
       type: 'image',
-      imageUrl: base64Data,
+      imageUrl: localPreviewUrl,
+      imagePublicId: '',
+      isImageUploading: true,
       content: '',
       tags: [],
       color: 'slate',
     };
 
+    // Immediately start placement - user places the card right away without waiting!
     startCardPlacement(newImageCard);
+    showToast('Click anywhere on canvas to place image note', 'info');
+
+    // Run compression & Cloudinary upload in background without blocking user
+    (async () => {
+      let uploadedImageUrl = '';
+      let uploadedPublicId = '';
+
+      try {
+        if (fileOrData instanceof File || fileOrData instanceof Blob) {
+          let fileToSend = fileOrData;
+          try {
+            const compressed = await compressImage(fileOrData);
+            if (compressed) {
+              fileToSend = compressed;
+              console.log(
+                `[Image Optimization] ${(fileOrData.size / 1024).toFixed(0)} KB -> ${(fileToSend.size / 1024).toFixed(0)} KB (${fileToSend.type})`
+              );
+            }
+          } catch (compErr) {
+            console.warn('[Image Optimization] Compression skipped, uploading original:', compErr);
+          }
+
+          const formData = new FormData();
+          formData.append('image', fileToSend);
+          formData.append('boardName', boardName || 'Untitled');
+          formData.append('boardId', boardId || '');
+
+          const response = await fetch(`${API_BASE}/uploads_img`, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await response.json();
+          console.log("Cloudinary response:", data);
+          if (data.success && data.url) {
+            uploadedImageUrl = data.url;
+            uploadedPublicId = data.public_id || '';
+          } else {
+            throw new Error(data.error || 'Failed to upload image');
+          }
+        } else if (typeof fileOrData === 'string') {
+          const response = await fetch(`${API_BASE}/uploads_img`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ image: fileOrData, boardName, boardId }),
+          });
+          const data = await response.json();
+          if (data.success && data.url) {
+            uploadedImageUrl = data.url;
+            uploadedPublicId = data.public_id || '';
+          } else {
+            uploadedImageUrl = fileOrData;
+          }
+        }
+
+        if (uploadedImageUrl) {
+          // Update card in placed cards on canvas
+          setCards((prev) =>
+            prev.map((c) => {
+              if (c.id === cardId || c.uploadTrackingId === cardId) {
+                return {
+                  ...c,
+                  imageUrl: uploadedImageUrl,
+                  imagePublicId: uploadedPublicId,
+                  isImageUploading: false,
+                };
+              }
+              return c;
+            })
+          );
+
+          // Also update pendingPlacementCard if user hasn't clicked to place yet
+          setPendingPlacementCard((prev) => {
+            if (prev && (prev.id === cardId || prev.uploadTrackingId === cardId)) {
+              return {
+                ...prev,
+                imageUrl: uploadedImageUrl,
+                imagePublicId: uploadedPublicId,
+                isImageUploading: false,
+              };
+            }
+            return prev;
+          });
+
+          // Auto-save board so the permanent Cloudinary URL is saved to database
+          setTimeout(() => {
+            handleSaveBoard(false);
+          }, 300);
+
+          showToast('Image synced to cloud!', 'success');
+        }
+      } catch (err) {
+        console.error('Background image upload failed:', err);
+        showToast('Image cloud sync failed', 'error');
+
+        setCards((prev) =>
+          prev.map((c) => {
+            if (c.id === cardId || c.uploadTrackingId === cardId) {
+              return { ...c, isImageUploading: false, uploadError: true };
+            }
+            return c;
+          })
+        );
+
+        setPendingPlacementCard((prev) => {
+          if (prev && (prev.id === cardId || prev.uploadTrackingId === cardId)) {
+            return { ...prev, isImageUploading: false, uploadError: true };
+          }
+          return prev;
+        });
+      }
+    })();
   };
 
   // Update card values (supports group movement delta when multiple cards selected)
@@ -2732,6 +2899,30 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       showToast('Cannot delete locked items or items inside locked groups. Unlock them first.', 'error');
       return;
     }
+
+    // Delete any associated images from Cloudinary directly
+    const cardsBeingDeleted = cards.filter((c) => idsToDelete.includes(c.id));
+    cardsBeingDeleted.forEach((card) => {
+      if (card.type === 'image') {
+        let publicId = card.imagePublicId;
+        if (!publicId && card.imageUrl && card.imageUrl.includes('cloudinary.com')) {
+          // Extract public_id from Cloudinary URL if imagePublicId was not stored
+          const match = card.imageUrl.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
+          if (match) publicId = match[1];
+        }
+
+        if (publicId) {
+          fetch(`${API_BASE}/delete_img`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_id: publicId })
+          })
+            .then(res => res.json())
+            .then(data => console.log('Cloudinary image deleted:', publicId, data))
+            .catch(err => console.error('Error deleting image from Cloudinary:', err));
+        }
+      }
+    });
 
     setCards((prev) => prev.filter((c) => !idsToDelete.includes(c.id)));
     setConnections((prev) =>
@@ -3684,6 +3875,9 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const activeToolClass = (toolMode === 'pen' || toolMode === 'ruler') ? 'tool-pen' : '';
 
   const getCursorStyleCss = (style) => {
+    if (isUploadingImage) {
+      return 'wait';
+    }
     if (toolMode === 'pen') {
       return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'/%3E%3C/svg%3E") 2 22, auto`;
     }
@@ -3748,6 +3942,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         data-view-only={isViewOnly ? "true" : "false"}
         data-draft-connecting={draftConnection ? "true" : "false"}
         data-highlight-active={(highlightedPathCardDepths || highlightedPathStartCardId) ? "true" : "false"}
+        data-uploading-image={isUploadingImage ? "true" : "false"}
         onPointerDown={handleContainerMouseDown}
         onClick={handleCanvasClick}
         onContextMenu={handleContextMenu}
@@ -5837,6 +6032,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           )}
         </div>
       )}
+
 
 
 

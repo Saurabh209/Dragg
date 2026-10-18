@@ -582,14 +582,13 @@ h6 {
   cursor: default;
 }
 
-/* Card & Group Container Hover Highlight */
+/* Card Hover Highlight */
 .card-wrapper {
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease, filter 0.3s ease;
+  transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 .card-wrapper:hover {
-  border-color: rgba(99, 102, 241, 0.85) !important;
-  box-shadow: 0 0 22px rgba(99, 102, 241, 0.45), 0 4px 18px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: none !important;
 }
 
 .group-container {
@@ -802,82 +801,109 @@ h6 {
   width: 100%;
   overflow: hidden;
   border-radius: 12px;
-  border-width: 1.5px;
-  border-style: solid;
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.16);
   transition: border-color 0.2s, box-shadow 0.2s;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  background: rgba(18, 20, 24, 0.97);
+}
+
+.card-wrapper .card-content-container {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.card-wrapper:hover .card-content-container {
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.card-wrapper.selected .card-content-container {
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.12);
 }
 
 /* Dynamic Accent Colors for Cards */
-.card-theme-slate {
+.card-theme-slate,
+.card-theme-slate .card-content-container {
   background: rgba(18, 20, 24, 0.97);
-  border-color: rgba(71, 85, 105, 0.65);
-  --theme-shadow-color: rgba(71, 85, 105, 0.6);
-  --theme-accent-color: var(--accent-slate);
+  border-color: rgba(255, 255, 255, 0.16);
+  --theme-shadow-color: rgba(255, 255, 255, 0.1);
+  --theme-accent-color: rgba(255, 255, 255, 0.25);
 }
 
-.card-theme-slate.selected {
-  border-color: var(--accent-slate);
-  box-shadow: 0 0 20px rgba(71, 85, 105, 0.45);
+.card-theme-slate.selected,
+.card-theme-slate.selected .card-content-container {
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
 }
 
-.card-theme-indigo {
+.card-theme-indigo,
+.card-theme-indigo .card-content-container {
   background: rgba(18, 18, 30, 0.97);
-  border-color: rgba(99, 102, 241, 0.65);
+  border-color: rgba(99, 102, 241, 0.55);
   --theme-shadow-color: rgba(99, 102, 241, 0.6);
   --theme-accent-color: var(--accent-indigo);
 }
 
-.card-theme-indigo.selected {
+.card-theme-indigo.selected,
+.card-theme-indigo.selected .card-content-container {
   border-color: var(--accent-indigo);
   box-shadow: 0 0 20px rgba(99, 102, 241, 0.45);
 }
 
-.card-theme-cyan {
+.card-theme-cyan,
+.card-theme-cyan .card-content-container {
   background: rgba(12, 22, 28, 0.97);
-  border-color: rgba(6, 182, 212, 0.65);
+  border-color: rgba(6, 182, 212, 0.55);
   --theme-shadow-color: rgba(6, 182, 212, 0.6);
   --theme-accent-color: var(--accent-cyan);
 }
 
-.card-theme-cyan.selected {
+.card-theme-cyan.selected,
+.card-theme-cyan.selected .card-content-container {
   border-color: var(--accent-cyan);
   box-shadow: 0 0 20px rgba(6, 182, 212, 0.45);
 }
 
-.card-theme-emerald {
+.card-theme-emerald,
+.card-theme-emerald .card-content-container {
   background: rgba(12, 24, 20, 0.97);
-  border-color: rgba(16, 185, 129, 0.65);
+  border-color: rgba(16, 185, 129, 0.55);
   --theme-shadow-color: rgba(16, 185, 129, 0.6);
   --theme-accent-color: var(--accent-emerald);
 }
 
-.card-theme-emerald.selected {
+.card-theme-emerald.selected,
+.card-theme-emerald.selected .card-content-container {
   border-color: var(--accent-emerald);
   box-shadow: 0 0 20px rgba(16, 185, 129, 0.45);
 }
 
-.card-theme-amber {
+.card-theme-amber,
+.card-theme-amber .card-content-container {
   background: rgba(24, 20, 15, 0.97);
-  border-color: rgba(245, 158, 11, 0.65);
+  border-color: rgba(245, 158, 11, 0.55);
   --theme-shadow-color: rgba(245, 158, 11, 0.6);
   --theme-accent-color: var(--accent-amber);
 }
 
-.card-theme-amber.selected {
+.card-theme-amber.selected,
+.card-theme-amber.selected .card-content-container {
   border-color: var(--accent-amber);
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.45);
 }
 
-.card-theme-rose {
+.card-theme-rose,
+.card-theme-rose .card-content-container {
   background: rgba(24, 15, 18, 0.97);
-  border-color: rgba(244, 63, 94, 0.65);
+  border-color: rgba(244, 63, 94, 0.55);
   --theme-shadow-color: rgba(244, 63, 94, 0.6);
   --theme-accent-color: var(--accent-rose);
 }
 
-.card-theme-rose.selected {
+.card-theme-rose.selected,
+.card-theme-rose.selected .card-content-container {
   border-color: var(--accent-rose);
   box-shadow: 0 0 20px rgba(244, 63, 94, 0.45);
 }
@@ -2076,24 +2102,28 @@ h6 {
   border-color: var(--accent-indigo);
 }
 
-/* Image Card Styling */
+/* Image Card Styling - Edge-to-Edge on bottom, left, and right */
 .card-image-content {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0.5rem;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .card-image-content img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 6px;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0 0 11px 11px;
   pointer-events: none;
+  display: block;
 }
 
 /* Card Attachments CSS */
@@ -3642,6 +3672,11 @@ h6 {
    TipTap Rich Text Editor & Bullet Points Styling
    ========================================== */
 
+@keyframes draggSpinLoader {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .tiptap-editor-wrapper {
   display: flex;
   flex-direction: column;
@@ -3649,6 +3684,93 @@ h6 {
   width: 100%;
   overflow: hidden;
   position: relative;
+}
+
+/* Tiptap Toolbar Wrapper & Scroll Buttons */
+.tiptap-toolbar-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  margin-right: -0.6rem;
+  margin-bottom: 0.5rem;
+  animation: slideDownFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+  z-index: 10;
+}
+
+.tiptap-toolbar-wrapper .notes-format-bar {
+  width: 100%;
+  margin-right: 0;
+  margin-bottom: 0;
+  animation: none;
+}
+
+.tiptap-toolbar-fade-left {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 36px;
+  background: linear-gradient(to right, rgba(14, 14, 20, 0.96) 35%, rgba(14, 14, 20, 0.6) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 18;
+}
+
+.tiptap-toolbar-fade-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 36px;
+  background: linear-gradient(to left, rgba(14, 14, 20, 0.96) 35%, rgba(14, 14, 20, 0.6) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 18;
+}
+
+.tiptap-scroll-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 25;
+  width: 20px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 22, 32, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.tiptap-scroll-btn:hover {
+  background: rgba(32, 32, 46, 0.98);
+  color: var(--accent-cyan, #06b6d4);
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.tiptap-scroll-btn:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.tiptap-scroll-btn.scroll-btn-left {
+  left: 3px;
+}
+
+.tiptap-scroll-btn.scroll-btn-right {
+  right: 3px;
 }
 
 .tiptap-toolbar {
@@ -4867,6 +4989,15 @@ html, body, #root, .board-workspace-wrapper, .dashboard-container {
   background-color: #0a0a0c !important;
   color-scheme: dark;
 }
+
+/* Floating Cursor Loader for Image Upload */
+@keyframes draggSpinLoader {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+
 
 
 

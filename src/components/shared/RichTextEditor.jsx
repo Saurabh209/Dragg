@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -33,7 +33,9 @@ import {
   Code,
   Quote,
   Minus,
-  Type
+  Type,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 const lowlight = createLowlight(common);
@@ -113,6 +115,87 @@ const RichTextEditor = ({
   notesStyle = {}
 }) => {
   const isUpdatingFromProps = useRef(false);
+  const toolbarRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollability = useCallback(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const maxScrollLeft = scrollWidth - clientWidth;
+
+    setCanScrollLeft(scrollLeft > 2);
+    setCanScrollRight(maxScrollLeft > 2 && scrollLeft < maxScrollLeft - 2);
+  }, []);
+
+  const handleScroll = (direction) => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const scrollAmount = Math.max(120, Math.floor(el.clientWidth * 0.6));
+    el.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
+    setTimeout(checkScrollability, 100);
+    setTimeout(checkScrollability, 250);
+    setTimeout(checkScrollability, 450);
+  };
+
+  // Convert vertical mouse wheel into horizontal scroll on toolbar without requiring Shift key
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const { scrollWidth, clientWidth } = el;
+      if (scrollWidth <= clientWidth) return;
+
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        el.scrollLeft += e.deltaY;
+        checkScrollability();
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, [checkScrollability]);
+
+  // Observe resize to update button visibility dynamically
+  useEffect(() => {
+    if (isViewOnly) return;
+    const el = toolbarRef.current;
+    if (!el) return;
+
+    checkScrollability();
+    const t1 = setTimeout(checkScrollability, 50);
+    const t2 = setTimeout(checkScrollability, 200);
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        checkScrollability();
+      });
+      resizeObserver.observe(el);
+    }
+
+    const handleResize = () => checkScrollability();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [checkScrollability, isViewOnly]);
 
   const editor = useEditor({
     extensions: [
@@ -178,10 +261,36 @@ const RichTextEditor = ({
       onKeyDown={(e) => e.stopPropagation()}
     >
       {!isViewOnly && (
-        <div
-          className="notes-format-bar tiptap-toolbar single-line-toolbar no-scrollbar"
-          onMouseDown={(e) => e.preventDefault()}
-        >
+        <div className="tiptap-toolbar-wrapper">
+          {canScrollLeft && (
+            <>
+              <div className="tiptap-toolbar-fade-left" />
+              <button
+                type="button"
+                className="tiptap-scroll-btn scroll-btn-left"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleScroll('left');
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                title="Scroll left"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft size={13} strokeWidth={2.5} />
+              </button>
+            </>
+          )}
+
+          <div
+            ref={toolbarRef}
+            className="notes-format-bar tiptap-toolbar single-line-toolbar no-scrollbar"
+            onMouseDown={(e) => e.preventDefault()}
+            onScroll={checkScrollability}
+          >
           <div className="tiptap-font-size-wrapper" title="Font Size">
             <Type size={11} className="font-size-icon" />
             <select
@@ -430,7 +539,31 @@ const RichTextEditor = ({
             <Redo size={12} />
           </button>
         </div>
-      )}
+
+        {canScrollRight && (
+          <>
+            <div className="tiptap-toolbar-fade-right" />
+            <button
+              type="button"
+              className="tiptap-scroll-btn scroll-btn-right"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleScroll('right');
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              title="Scroll right"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={13} strokeWidth={2.5} />
+            </button>
+          </>
+        )}
+      </div>
+    )}
 
       <EditorContent
         editor={editor}
