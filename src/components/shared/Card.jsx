@@ -823,6 +823,25 @@ function Card({
       onWheel={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation();
+        // Prevent recentering if double-clicking inside interactive elements (buttons, inputs, toolbars, etc.)
+        if (
+          e.target.closest('button') ||
+          e.target.closest('input') ||
+          e.target.closest('textarea') ||
+          e.target.closest('select') ||
+          e.target.closest('.tiptap-scroll-btn') ||
+          e.target.closest('.tiptap-toolbar-wrapper') ||
+          e.target.closest('.notes-format-bar') ||
+          e.target.closest('.card-content-textarea') ||
+          e.target.closest('.card-action-btn') ||
+          e.target.closest('.card-tab-btn') ||
+          e.target.closest('.card-sketch-toolbar') ||
+          e.target.closest('.color-dot') ||
+          e.target.closest('.tag-badge') ||
+          e.target.closest('[contenteditable]')
+        ) {
+          return;
+        }
         if (onDoubleClickFocus) onDoubleClickFocus(card);
       }}
     >

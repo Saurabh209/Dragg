@@ -258,13 +258,17 @@ const RichTextEditor = ({
     <div
       className="tiptap-editor-wrapper"
       onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
       {!isViewOnly && (
-        <div className="tiptap-toolbar-wrapper">
+        <div
+          className="tiptap-toolbar-wrapper"
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
           {canScrollLeft && (
             <>
-              <div className="tiptap-toolbar-fade-left" />
+              {/* <div className="tiptap-toolbar-fade-left" /> */}
               <button
                 type="button"
                 className="tiptap-scroll-btn scroll-btn-left"
@@ -273,7 +277,15 @@ const RichTextEditor = ({
                   e.stopPropagation();
                   handleScroll('left');
                 }}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
                 onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onPointerDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                 }}
@@ -542,7 +554,7 @@ const RichTextEditor = ({
 
         {canScrollRight && (
           <>
-            <div className="tiptap-toolbar-fade-right" />
+            {/* <div className="tiptap-toolbar-fade-right" /> */}
             <button
               type="button"
               className="tiptap-scroll-btn scroll-btn-right"
@@ -551,7 +563,15 @@ const RichTextEditor = ({
                 e.stopPropagation();
                 handleScroll('right');
               }}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}

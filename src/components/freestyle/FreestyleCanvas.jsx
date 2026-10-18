@@ -3872,9 +3872,12 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     }
   };
 
-  const activeToolClass = (toolMode === 'pen' || toolMode === 'ruler') ? 'tool-pen' : '';
+  const activeToolClass = (toolMode === 'pen' || toolMode === 'ruler') ? 'tool-pen' : (toolMode === 'connector' ? 'tool-connector' : '');
 
   const getCursorStyleCss = (style) => {
+    if (draftConnection || toolMode === 'connector') {
+      return 'pointer';
+    }
     if (isUploadingImage) {
       return 'wait';
     }
@@ -4867,7 +4870,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                   pointerEvents: 'none',
                   zIndex: 99999,
                   opacity: 0.78,
-                  filter: 'drop-shadow(0 14px 36px rgba(56, 189, 248, 0.4))',
+                  filter: 'drop-shadow(0 14px 36px rgba(210, 215, 225, 0.25))',
                   transform: 'scale(1.01)'
                 }}
               >
@@ -4877,9 +4880,9 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                       position: 'relative',
                       width: `${pendingPlacementCard.width || 260}px`,
                       height: `${pendingPlacementCard.height || 180}px`,
-                      border: '2px dashed #38bdf8',
+                      border: '2px dashed rgba(210, 215, 225, 0.4)',
                       borderRadius: '12px',
-                      background: 'rgba(56, 189, 248, 0.08)',
+                      background: 'rgba(210, 215, 225, 0.06)',
                       padding: '8px',
                       boxSizing: 'border-box'
                     }}
@@ -4889,7 +4892,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                         position: 'absolute',
                         top: '-26px',
                         left: '0',
-                        background: '#38bdf8',
+                        background: '#e2e8f0',
                         color: '#090d16',
                         fontSize: '0.7rem',
                         fontWeight: 700,
@@ -4898,7 +4901,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                         display: 'flex',
                         alignItems: 'center',
                         gap: '4px',
-                        boxShadow: '0 4px 12px rgba(56, 189, 248, 0.5)'
+                        boxShadow: '0 4px 12px rgba(210, 215, 225, 0.3)'
                       }}
                     >
                       <span>Grabbed ({pendingPlacementCard.cards.length} Items) - Click to Place</span>
