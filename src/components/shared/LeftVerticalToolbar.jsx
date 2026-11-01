@@ -144,21 +144,6 @@ function LeftVerticalToolbar({
     setActiveMenu((prev) => (prev === menuName ? null : menuName));
   };
 
-  // Reposition logic on dragging drag handle
-  const handleMouseDown = (e) => {
-    if (isViewOnly) return;
-    if (e.button !== 0) return; // Left click drag only
-    e.preventDefault();
-    e.stopPropagation();
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const initialX = localPos.x;
-    const initialY = localPos.y;
-
-    setDragState({ startX, startY, initialX, initialY });
-  };
-
   useEffect(() => {
     if (!dragState) return;
 

@@ -107,6 +107,32 @@ export const getPlaceholderForLang = (lang) => {
   }
 };
 
+const RESIZE_LINE_OFFSET = 4.5;
+
+const getClosestPointOnResizeLine = (x, y, width, height) => {
+  const w = width;
+  const h = height;
+  const offset = RESIZE_LINE_OFFSET;
+
+  const cornerPadX = Math.min(22, w * 0.25);
+  const cornerPadY = Math.min(22, h * 0.25);
+
+  const clampedX = Math.max(cornerPadX, Math.min(w - cornerPadX, x));
+  const clampedY = Math.max(cornerPadY, Math.min(h - cornerPadY, y));
+
+  const distL = Math.abs(x - (-offset));
+  const distR = Math.abs(x - (w + offset));
+  const distT = Math.abs(y - (-offset));
+  const distB = Math.abs(y - (h + offset));
+
+  const minDist = Math.min(distL, distR, distT, distB);
+
+  if (minDist === distT) return { x: clampedX, y: -offset };
+  if (minDist === distB) return { x: clampedX, y: h + offset };
+  if (minDist === distL) return { x: -offset, y: clampedY };
+  return { x: w + offset, y: clampedY };
+};
+
 function Card({
   card,
   isSelected,
@@ -116,6 +142,7 @@ function Card({
   zoom,
   onStartConnection,
   toolMode, // 'select' | 'connector' | 'pen' | 'ruler'
+  isConnecting = false,
   isViewOnly: isViewOnlyGlobal = false,
   isBlinking = false,
   onDoubleClickFocus,
@@ -161,6 +188,7 @@ function Card({
     transitionDelay: highlightDelay ? `${highlightDelay}ms` : '0ms'
   };
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [freestyleDot, setFreestyleDot] = useState(null);
   const [isEditingTag, setIsEditingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [showIdModal, setShowIdModal] = useState(false);
@@ -169,6 +197,13 @@ function Card({
   useEffect(() => {
     setIdInput(String(card.highlightId || ''));
   }, [card.highlightId]);
+
+  // Reset freestyle dot if card becomes unselected (and not in connector mode)
+  useEffect(() => {
+    if (!isSelected && toolMode !== 'connector') {
+      setFreestyleDot(null);
+    }
+  }, [isSelected, toolMode]);
 
   // Sketch states
   const [sketchColor, setSketchColor] = useState('#ffffff');
@@ -326,17 +361,30 @@ function Card({
     }
 
     e.stopPropagation();
+
+    // If a draft connection is already in progress and user clicks this card to connect:
+    if (isConnecting) {
+      e.preventDefault();
+      onStartConnection(card.id, card.nodeLayout !== 'four-node' ? 'freestyle' : 'connector', e);
+      return;
+    }
+
     onSelect(card.id, e);
 
     // If connector mode is active, dragging from anywhere on the card draws a connection line
     if (toolMode === 'connector') {
       e.preventDefault();
-      onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'connector', e);
+      onStartConnection(card.id, card.nodeLayout !== 'four-node' ? 'freestyle' : 'connector', e);
       return;
     }
 
     // Otherwise translate the card (Drag & Move)
-    if (e.target.closest('.resize-handle') || e.target.closest('.connection-node')) return;
+    if (
+      e.target.closest('.resize-handle') ||
+      e.target.closest('.connection-node') ||
+      e.target.closest('.connection-node-port') ||
+      e.target.closest('.freestyle-connector-dot-handle')
+    ) return;
 
     e.preventDefault();
 
@@ -365,9 +413,79 @@ function Card({
     document.addEventListener('pointerup', handleMouseUp);
   };
 
+  const handleCardPointerMove = (e) => {
+    if (isViewOnly) return;
+    if (card.nodeLayout === 'four-node') return;
+    if (!cardRef.current) return;
+
+    // Only allow showing connection dot and connecting when card is selected or connector tool is active
+    if (!isSelected && toolMode !== 'connector') {
+      if (freestyleDot) setFreestyleDot(null);
+      return;
+    }
+
+    const rect = cardRef.current.getBoundingClientRect();
+    const currentZoom = zoom || 1;
+    const localX = (e.clientX - rect.left) / currentZoom;
+    const localY = (e.clientY - rect.top) / currentZoom;
+    const w = card.width || 250;
+    const h = card.height || 200;
+
+    const offset = RESIZE_LINE_OFFSET;
+    // Hitbox threshold: only show dot when cursor is near the blue line hitbox area
+    const distL = Math.abs(localX - (-offset));
+    const distR = Math.abs(localX - (w + offset));
+    const distT = Math.abs(localY - (-offset));
+    const distB = Math.abs(localY - (h + offset));
+    const minDistToLine = Math.min(distL, distR, distT, distB);
+
+    if (minDistToLine > 14) {
+      if (freestyleDot) setFreestyleDot(null);
+      return;
+    }
+
+    // Corner exclusion zone: Do not show or allow connection dot in corners
+    // so it never overlaps or conflicts with corner resize handles
+    const cornerThresholdX = Math.min(22, w * 0.25);
+    const cornerThresholdY = Math.min(22, h * 0.25);
+    const isNearCorner = (
+      (localX < cornerThresholdX && localY < cornerThresholdY) ||
+      (localX > w - cornerThresholdX && localY < cornerThresholdY) ||
+      (localX < cornerThresholdX && localY > h - cornerThresholdY) ||
+      (localX > w - cornerThresholdX && localY > h - cornerThresholdY)
+    );
+
+    if (isNearCorner) {
+      if (freestyleDot) setFreestyleDot(null);
+      return;
+    }
+
+    const dotPt = getClosestPointOnResizeLine(localX, localY, w, h);
+
+    // Double check that projected point is also outside corner zones
+    const isDotNearCorner = (
+      (dotPt.x < cornerThresholdX && dotPt.y < cornerThresholdY) ||
+      (dotPt.x > w - cornerThresholdX && dotPt.y < cornerThresholdY) ||
+      (dotPt.x < cornerThresholdX && dotPt.y > h - cornerThresholdY) ||
+      (dotPt.x > w - cornerThresholdX && dotPt.y > h - cornerThresholdY)
+    );
+
+    if (isDotNearCorner) {
+      if (freestyleDot) setFreestyleDot(null);
+      return;
+    }
+
+    setFreestyleDot(dotPt);
+  };
+
+  const handleCardPointerLeave = () => {
+    if (freestyleDot) setFreestyleDot(null);
+  };
+
   // 8-Way Card Resize controller
   const handleResizeMouseDown = (direction, e) => {
     if (isViewOnly) return;
+    if (toolMode === 'connector') return;
     e.preventDefault();
     e.stopPropagation();
     onSelect(card.id);
@@ -786,8 +904,10 @@ function Card({
     background: `linear-gradient(${hexToRgba(effectiveColor, 0.22)}, ${hexToRgba(effectiveColor, 0.12)}), rgba(18, 20, 24, 0.97)`,
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
-    boxShadow: isSelected ? `0 0 22px ${hexToRgba(effectiveColor, 0.55)}` : `0 4px 18px ${hexToRgba(effectiveColor, 0.3)}`,
-  } : {};
+    boxShadow: 'none',
+  } : {
+    boxShadow: 'none',
+  };
 
   const notesStyle = {
     fontSize: card.notesFontSize === 'small' ? '12px' :
@@ -820,6 +940,8 @@ function Card({
         ...dimStyle
       }}
       onPointerDown={handleMouseDown}
+      onPointerMove={handleCardPointerMove}
+      onPointerLeave={handleCardPointerLeave}
       onWheel={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -1179,7 +1301,7 @@ function Card({
               background: '#ffffff',
               // borderRadius: '16px',
               // border: '1.5px solid #e2e8f0',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+              boxShadow: 'none',
               color: '#0f172a',
               boxSizing: 'border-box'
             }}
@@ -1263,9 +1385,9 @@ function Card({
             <>
               <textarea
                 className="card-title-input heading-multiline no-scrollbar"
-                value={card.title}
+                value={card.title === 'Minimal Card' ? '' : (card.title ?? '')}
                 onChange={(e) => onUpdate(card.id, { title: e.target.value })}
-                placeholder="Minimal Card"
+                placeholder="TEXT"
                 onClick={(e) => e.stopPropagation()}
                 readOnly={isViewOnly}
                 style={{
@@ -1677,55 +1799,118 @@ function Card({
 
 
 
-      {/* Corners-Only Card Resize Handles */}
+      {/* Corner Resize Handles & Selection Bounding Box */}
       {!isViewOnly && (
-        <>
+        <div className="card-resize-bounding-box">
           <div className="resize-handle resize-handle-tl" onPointerDown={(e) => handleResizeMouseDown('tl', e)} />
           <div className="resize-handle resize-handle-tr" onPointerDown={(e) => handleResizeMouseDown('tr', e)} />
           <div className="resize-handle resize-handle-bl" onPointerDown={(e) => handleResizeMouseDown('bl', e)} />
           <div className="resize-handle resize-handle-br" onPointerDown={(e) => handleResizeMouseDown('br', e)} />
-        </>
+        </div>
       )}
 
-      {/* Connection nodes rendered in Select Mode */}
-      {!isViewOnly && toolMode === 'select' && features.connectPorts && (
+      {/* Connection nodes rendered ONLY when card is selected or connector tool is active */}
+      {!isViewOnly && (isSelected || toolMode === 'connector') && features.connectPorts && (
         <>
-          <div
-            className={`connection-node node-top ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'top', e);
-            }}
-          >
-            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-top" />}
-          </div>
-          <div
-            className={`connection-node node-right ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'right', e);
-            }}
-          >
-            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-right" />}
-          </div>
-          <div
-            className={`connection-node node-bottom ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'bottom', e);
-            }}
-          >
-            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-bottom" />}
-          </div>
-          <div
-            className={`connection-node node-left ${card.nodeLayout === 'freestyle' ? 'node-layout-freestyle' : 'node-layout-four-node'}`}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onStartConnection(card.id, card.nodeLayout === 'freestyle' ? 'freestyle' : 'left', e);
-            }}
-          >
-            {card.nodeLayout !== 'freestyle' && <div className="node-port-semicircle node-port-left" />}
-          </div>
+          {card.nodeLayout !== 'four-node' ? (
+            <>
+              {/* Edge stripes for freestyle grabbing */}
+              <div
+                className="connection-node node-top node-layout-freestyle"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'freestyle', e);
+                }}
+              />
+              <div
+                className="connection-node node-right node-layout-freestyle"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'freestyle', e);
+                }}
+              />
+              <div
+                className="connection-node node-bottom node-layout-freestyle"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'freestyle', e);
+                }}
+              />
+              <div
+                className="connection-node node-left node-layout-freestyle"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'freestyle', e);
+                }}
+              />
+
+              {/* Dynamic Freestyle Dot following cursor position along resize blue line */}
+              {freestyleDot && (
+                <div
+                  className="freestyle-connector-dot-handle"
+                  style={{
+                    left: `${freestyleDot.x}px`,
+                    top: `${freestyleDot.y}px`
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    onStartConnection(card.id, 'freestyle', e);
+                  }}
+                  title="Drag to connect"
+                >
+                  <div className="connector-node-dot" />
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* 4-Node Connector Ports with circular border dots on the blue line */}
+              <div
+                className="connection-node-port port-top"
+                style={{ top: -4.5, left: '50%' }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'top', e);
+                }}
+                title="Connect Top"
+              >
+                <div className="connector-node-dot" />
+              </div>
+              <div
+                className="connection-node-port port-right"
+                style={{ top: '50%', left: 'calc(100% + 4.5px)' }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'right', e);
+                }}
+                title="Connect Right"
+              >
+                <div className="connector-node-dot" />
+              </div>
+              <div
+                className="connection-node-port port-bottom"
+                style={{ top: 'calc(100% + 4.5px)', left: '50%' }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'bottom', e);
+                }}
+                title="Connect Bottom"
+              >
+                <div className="connector-node-dot" />
+              </div>
+              <div
+                className="connection-node-port port-left"
+                style={{ top: '50%', left: -4.5 }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onStartConnection(card.id, 'left', e);
+                }}
+                title="Connect Left"
+              >
+                <div className="connector-node-dot" />
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

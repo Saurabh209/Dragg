@@ -561,30 +561,24 @@ h6 {
   pointer-events: none;
 }
 
-.connection-draft {
+.connection-draft,
+.connection-draft-live {
   fill: none;
-  stroke: var(--accent-indigo);
-  stroke-width: 2px;
-  stroke-dasharray: 6, 6;
-  animation: dashRotation 1s linear infinite;
-  pointer-events: none;
+  pointer-events: none !important;
+  cursor: default !important;
 }
 
 /* Dragging Card Components */
 .card-wrapper {
   position: absolute;
   pointer-events: auto;
-  border-radius: 12px;
+  border-radius: 6px;
   z-index: 10;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition: opacity 0.3s ease, filter 0.3s ease, border-color 0.2s;
   display: flex;
   flex-direction: column;
   cursor: default;
-}
-
-/* Card Hover Highlight */
-.card-wrapper {
-  transition: opacity 0.3s ease, filter 0.3s ease;
+  box-shadow: none !important;
 }
 
 .card-wrapper:hover {
@@ -800,13 +794,14 @@ h6 {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 6px;
   border: 1.5px solid rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.16);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   background: rgba(18, 20, 24, 0.97);
+  box-shadow: none !important;
 }
 
 .card-wrapper .card-content-container {
@@ -820,7 +815,7 @@ h6 {
 
 .card-wrapper.selected .card-content-container {
   border-color: rgba(255, 255, 255, 0.45);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.12);
+  box-shadow: none !important;
 }
 
 /* Dynamic Accent Colors for Cards */
@@ -828,84 +823,90 @@ h6 {
 .card-theme-slate .card-content-container {
   background: rgba(18, 20, 24, 0.97);
   border-color: rgba(255, 255, 255, 0.16);
-  --theme-shadow-color: rgba(255, 255, 255, 0.1);
+  --theme-shadow-color: transparent;
   --theme-accent-color: rgba(255, 255, 255, 0.25);
+  box-shadow: none !important;
 }
 
 /* .card-theme-slate.selected,
 .card-theme-slate.selected .card-content-container {
   border-color: rgba(255, 255, 255, 0.45);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+  box-shadow: none !important;
 } */
 
 .card-theme-indigo,
 .card-theme-indigo .card-content-container {
   background: rgba(18, 18, 30, 0.97);
   border-color: rgba(99, 102, 241, 0.55);
-  --theme-shadow-color: rgba(99, 102, 241, 0.6);
+  --theme-shadow-color: transparent;
   --theme-accent-color: var(--accent-indigo);
+  box-shadow: none !important;
 }
 
 .card-theme-indigo.selected,
 .card-theme-indigo.selected .card-content-container {
   border-color: var(--accent-indigo);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.45);
+  box-shadow: none !important;
 }
 
 .card-theme-cyan,
 .card-theme-cyan .card-content-container {
   background: rgba(12, 22, 28, 0.97);
   border-color: rgba(6, 182, 212, 0.55);
-  --theme-shadow-color: rgba(6, 182, 212, 0.6);
+  --theme-shadow-color: transparent;
   --theme-accent-color: var(--accent-cyan);
+  box-shadow: none !important;
 }
 
 .card-theme-cyan.selected,
 .card-theme-cyan.selected .card-content-container {
   border-color: var(--accent-cyan);
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.45);
+  box-shadow: none !important;
 }
 
 .card-theme-emerald,
 .card-theme-emerald .card-content-container {
   background: rgba(12, 24, 20, 0.97);
   border-color: rgba(16, 185, 129, 0.55);
-  --theme-shadow-color: rgba(16, 185, 129, 0.6);
+  --theme-shadow-color: transparent;
   --theme-accent-color: var(--accent-emerald);
+  box-shadow: none !important;
 }
 
 .card-theme-emerald.selected,
 .card-theme-emerald.selected .card-content-container {
   border-color: var(--accent-emerald);
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.45);
+  box-shadow: none !important;
 }
 
 .card-theme-amber,
 .card-theme-amber .card-content-container {
   background: rgba(24, 20, 15, 0.97);
   border-color: rgba(245, 158, 11, 0.55);
-  --theme-shadow-color: rgba(245, 158, 11, 0.6);
+  --theme-shadow-color: transparent;
   --theme-accent-color: var(--accent-amber);
+  box-shadow: none !important;
 }
 
 .card-theme-amber.selected,
 .card-theme-amber.selected .card-content-container {
   border-color: var(--accent-amber);
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.45);
+  box-shadow: none !important;
 }
 
 .card-theme-rose,
 .card-theme-rose .card-content-container {
   background: rgba(24, 15, 18, 0.97);
   border-color: rgba(244, 63, 94, 0.55);
-  --theme-shadow-color: rgba(244, 63, 94, 0.6);
+  --theme-shadow-color: transparent;
   --theme-accent-color: var(--accent-rose);
+  box-shadow: none !important;
 }
 
 .card-theme-rose.selected,
 .card-theme-rose.selected .card-content-container {
   border-color: var(--accent-rose);
-  box-shadow: 0 0 20px rgba(244, 63, 94, 0.45);
+  box-shadow: none !important;
 }
 
 /* Card Header & Controls */
@@ -1350,78 +1351,76 @@ h6 {
   width: 70px;
 }
 
-/* Card Resize Handle */
-/* Card Resize Handles (8-way) */
-.resize-handle {
+/* Card Selection & Resize Bounding Box (Corners-Only) */
+.card-resize-bounding-box {
   position: absolute;
-  z-index: 150;
+  inset: -4.5px;
+  border: 1.5px solid transparent;
+  border-radius: 0;
+  pointer-events: none;
+  z-index: 120;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.card-wrapper.selected .card-resize-bounding-box {
+  border-color: #0ea5e9;
+}
+
+.card-resize-bounding-box .resize-handle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #ffffff;
+  border: 1.5px solid #0ea5e9;
+  border-radius: 1.5px;
   pointer-events: auto;
-  background: transparent;
+  box-sizing: border-box;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+  z-index: 125;
 }
 
-/* Edges */
-.resize-handle-t {
-  top: -4px;
-  left: 4px;
-  right: 4px;
-  height: 8px;
-  cursor: ns-resize;
+/* Generous grab hitbox around the 7px square handle */
+.card-resize-bounding-box .resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  pointer-events: auto;
 }
 
-.resize-handle-b {
-  bottom: -4px;
-  left: 4px;
-  right: 4px;
-  height: 8px;
-  cursor: ns-resize;
+.card-wrapper.selected .card-resize-bounding-box .resize-handle {
+  opacity: 1;
+  visibility: visible;
 }
 
-.resize-handle-l {
-  left: -4px;
-  top: 4px;
-  bottom: 4px;
-  width: 8px;
-  cursor: ew-resize;
-}
-
-.resize-handle-r {
-  right: -4px;
-  top: 4px;
-  bottom: 4px;
-  width: 8px;
-  cursor: ew-resize;
-}
-
-/* Corners */
-.resize-handle-tl {
-  top: -6px;
-  left: -6px;
-  width: 12px;
-  height: 12px;
+/* Corners aligned directly with rectangular bounding box vertices */
+.card-resize-bounding-box .resize-handle-tl {
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
   cursor: nwse-resize;
 }
 
-.resize-handle-tr {
-  top: -6px;
-  right: -6px;
-  width: 12px;
-  height: 12px;
+.card-resize-bounding-box .resize-handle-tr {
+  top: 0;
+  right: 0;
+  transform: translate(50%, -50%);
   cursor: nesw-resize;
 }
 
-.resize-handle-bl {
-  bottom: -6px;
-  left: -6px;
-  width: 12px;
-  height: 12px;
+.card-resize-bounding-box .resize-handle-bl {
+  bottom: 0;
+  left: 0;
+  transform: translate(-50%, 50%);
   cursor: nesw-resize;
 }
 
-.resize-handle-br {
-  bottom: -6px;
-  right: -6px;
-  width: 12px;
-  height: 12px;
+.card-resize-bounding-box .resize-handle-br {
+  bottom: 0;
+  right: 0;
+  transform: translate(50%, 50%);
   cursor: nwse-resize;
 }
 
@@ -1453,172 +1452,123 @@ h6 {
   cursor: pointer;
 }
 
-/* --- FREESTYLE SNAPPING: Edge Anchor Line --- */
-.connection-node.node-layout-freestyle::after {
+/* ========================================================
+   Card Connection Nodes (4-Node & Freestyle Border Dot)
+   ======================================================== */
+
+/* Unified Circular Connector Dot matching design */
+.connector-node-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: none;
+  box-shadow: 0 0 4px rgba(14, 165, 233, 0.65), 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 1005;
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
+}
+
+/* Generous click/touch target around the dot */
+.connector-node-dot::after {
   content: '';
   position: absolute;
-  background: var(--accent-cyan, #00f2fe);
-  opacity: 0;
-  border-radius: 4px;
-  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
-  pointer-events: none;
+  inset: -8px;
+  border-radius: 50%;
 }
 
-/* Horizontal edge anchor lines */
-/* .node-top.node-layout-freestyle::after,
-.node-bottom.node-layout-freestyle::after {
-  height: 2px;
-  width: 80%;
-  box-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
-} */
-
-/* Vertical edge anchor lines */
-/* .node-left.node-layout-freestyle::after,
-.node-right.node-layout-freestyle::after {
-  width: 2px;
-  height: 80%;
-  box-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
-} */
-
-.connection-node.node-layout-freestyle:hover::after {
-  opacity: 1;
-  box-shadow: 0 0 12px rgba(0, 242, 254, 1);
-}
-
-.card-container:hover .connection-node.node-layout-freestyle::after {
-  opacity: 0.4;
-}
-
-/* --- 4-PORT SNAPPING: Professional Semi-Circle Outer Tabs --- */
-.node-port-semicircle {
+/* 4-Node Connector Ports */
+.connection-node-port {
   position: absolute;
-  background: linear-gradient(135deg, #0284c7, #06b6d4);
-  border: 1px solid rgba(56, 189, 248, 0.85);
-  box-shadow: 0 0 8px rgba(6, 182, 212, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.35);
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1005;
+  pointer-events: auto;
+}
+
+.connection-node-port .connector-node-dot {
   opacity: 0;
+  transform: scale(0.85);
   pointer-events: none;
-  z-index: 1001;
-  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, box-shadow 0.18s ease;
 }
 
-
-
-/* Semi-circle positioning for TOP edge (pointing upwards, outer side) */
-.node-port-top {
-  top: 8px;
-  left: 50%;
-  transform: translate(-50%, -100%) scale(0.8);
-  width: 18px;
-  height: 9px;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* Semi-circle positioning for BOTTOM edge (pointing downwards, outer side) */
-.node-port-bottom {
-  top: 8px;
-  left: 50%;
-  transform: translate(-50%, 0) scale(0.8);
-  width: 18px;
-  height: 9px;
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-/* Semi-circle positioning for LEFT edge (pointing leftwards, outer side) */
-.node-port-left {
-  left: 8px;
-  top: 50%;
-  transform: translate(-100%, -50%) scale(0.8);
-  width: 9px;
-  height: 18px;
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* Semi-circle positioning for RIGHT edge (pointing rightwards, outer side) */
-.node-port-right {
-  left: 8px;
-  top: 50%;
-  transform: translate(0, -50%) scale(0.8);
-  width: 9px;
-  height: 18px;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-/* Card hover & Node hover states */
-.card-container:hover .node-port-semicircle {
-  opacity: 0.85;
-}
-
-.card-container:hover .node-port-top {
-  transform: translate(-50%, -100%) scale(1);
-}
-.card-container:hover .node-port-bottom {
-  transform: translate(-50%, 0) scale(1);
-}
-.card-container:hover .node-port-left {
-  transform: translate(-100%, -50%) scale(1);
-}
-.card-container:hover .node-port-right {
-  transform: translate(0, -50%) scale(1);
-}
-
-.connection-node:hover .node-port-semicircle {
+/* Connection dot is ONLY visible when hovering directly on the port hitbox from where node is created */
+.connection-node-port:hover .connector-node-dot {
   opacity: 1 !important;
-  background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.95), inset 0 1px 3px rgba(255, 255, 255, 0.6) !important;
+  transform: scale(1.2) !important;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.95) !important;
 }
 
-.connection-node:hover .node-port-top {
-  transform: translate(-50%, -100%) scale(1.3) !important;
-}
-.connection-node:hover .node-port-bottom {
-  transform: translate(-50%, 0) scale(1.3) !important;
-}
-.connection-node:hover .node-port-left {
-  transform: translate(-100%, -50%) scale(1.3) !important;
-}
-.connection-node:hover .node-port-right {
-  transform: translate(0, -50%) scale(1.3) !important;
+/* Freestyle Dynamic Cursor-Tracking Dot Handle */
+.freestyle-connector-dot-handle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1010;
+  pointer-events: auto;
+  animation: fadeInDot 0.1s ease forwards;
 }
 
-/* Position connection nodes as full-length edge stripes */
+@keyframes fadeInDot {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.freestyle-connector-dot-handle .connector-node-dot {
+  opacity: 1 !important;
+  transform: scale(1);
+}
+
+.freestyle-connector-dot-handle:hover .connector-node-dot {
+  transform: scale(1.2) !important;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.95) !important;
+}
+
+/* Position connection nodes as edge stripes for freestyle grabbing (aligned with resize blue line, excluding corners) */
 .node-top {
-  top: -10px;
-  left: 10px;
-  width: calc(100% - 20px);
-  height: 10px;
+  top: -11.5px;
+  left: 22px;
+  width: calc(100% - 44px);
+  height: 14px;
 }
 
 .node-right {
- top: 10px;
-    right: -10px;
-    width: 10px;
-    height: calc(100% - 20px);
+  top: 22px;
+  right: -11.5px;
+  width: 14px;
+  height: calc(100% - 44px);
 }
 
 .node-bottom {
-  bottom: -10px;
-  left: 10px;
-  width: calc(100% - 20px);
-  height: 10px;
+  bottom: -11.5px;
+  left: 22px;
+  width: calc(100% - 44px);
+  height: 14px;
 }
 
 .node-left {
- top: 10px;
-    left: -10px;
-    width: 10px;
-    height: calc(100% - 20px);
+  top: 22px;
+  left: -11.5px;
+  width: 14px;
+  height: calc(100% - 44px);
 }
 
 /* Floating Color Palette Picker for Cards */
@@ -2136,7 +2086,7 @@ h6 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 0 0 11px 11px;
+  border-radius: 0 0 5px 5px;
   pointer-events: none;
   display: block;
 }
@@ -3032,7 +2982,7 @@ h6 {
 /* Group Container Styles */
 .group-container-wrapper {
   border: 1px dashed rgba(6, 182, 212, 0.4);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(6, 182, 212, 0.03);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   display: flex;

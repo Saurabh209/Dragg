@@ -38,27 +38,25 @@ const intersectsRect = (p1, p2, rect) => {
 
 const getClosestPointOnRectBorder = (point, rect) => {
   if (!rect) return point;
-  const x = point.x;
-  const y = point.y;
+  const w = rect.right - rect.left;
+  const h = rect.bottom - rect.top;
+  const cornerPadX = Math.min(22, w * 0.25);
+  const cornerPadY = Math.min(22, h * 0.25);
 
-  const clampedX = Math.max(rect.left, Math.min(rect.right, x));
-  const clampedY = Math.max(rect.top, Math.min(rect.bottom, y));
+  const clampedX = Math.max(rect.left + cornerPadX, Math.min(rect.right - cornerPadX, point.x));
+  const clampedY = Math.max(rect.top + cornerPadY, Math.min(rect.bottom - cornerPadY, point.y));
 
-  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-    return { x: clampedX, y: clampedY };
-  }
-
-  const distL = x - rect.left;
-  const distR = rect.right - x;
-  const distT = y - rect.top;
-  const distB = rect.bottom - y;
+  const distL = Math.abs(point.x - rect.left);
+  const distR = Math.abs(rect.right - point.x);
+  const distT = Math.abs(point.y - rect.top);
+  const distB = Math.abs(rect.bottom - point.y);
 
   const minDist = Math.min(distL, distR, distT, distB);
 
-  if (minDist === distL) return { x: rect.left, y };
-  if (minDist === distR) return { x: rect.right, y };
-  if (minDist === distT) return { x, y: rect.top };
-  return { x, y: rect.bottom };
+  if (minDist === distL) return { x: rect.left, y: clampedY };
+  if (minDist === distR) return { x: rect.right, y: clampedY };
+  if (minDist === distT) return { x: clampedX, y: rect.top };
+  return { x: clampedX, y: rect.bottom };
 };
 
 const isPathSafe = (points, rectA, rectB) => {
@@ -357,7 +355,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const [activeConnectorColor, setActiveConnectorColor] = useState('auto');
   const [activeConnectorAnimation, setActiveConnectorAnimation] = useState('none');
   const [activeConnectorThickness, setActiveConnectorThickness] = useState(2.5);
-  const [cardNodeLayout, setCardNodeLayout] = useState('four-node'); // 'four-node' | 'freestyle'
+  const [cardNodeLayout, setCardNodeLayout] = useState('freestyle'); // 'four-node' | 'freestyle'
 
   const handleConnectorThicknessChange = (newThickness) => {
     setActiveConnectorThickness(newThickness);
@@ -397,6 +395,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const [contextMenu, setContextMenu] = useState(null);
   const [activeBadgePickerCardId, setActiveBadgePickerCardId] = useState(null);
   const contextMenuRef = useRef(null);
+  const imageFileInputRef = useRef(null);
 
   // Ghost Placement Shadow state for cursor-attached card creation
   const [pendingPlacementCard, setPendingPlacementCard] = useState(null);
@@ -2356,7 +2355,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
     if (cardType === 'minimal') {
       width = 200;
-      height = 50;
+      height = 40;
       features = {
         notes: false,
         sketch: false,
@@ -2379,15 +2378,19 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       };
     } else if (cardType === 'image') {
       setShowAddCardModal(false);
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-      fileInput.onchange = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        handleUploadImage(file);
-      };
-      fileInput.click();
+      if (imageFileInputRef.current) {
+        imageFileInputRef.current.click();
+      } else {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.onchange = (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          handleUploadImage(file);
+        };
+        fileInput.click();
+      }
       return;
     }
 
@@ -2410,7 +2413,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       y: spawnY,
       width,
       height,
-      title: cardType === 'minimal' ? 'Minimal Card' : 'Untitled Note',
+      title: cardType === 'minimal' ? '' : 'Untitled Note',
       content: '',
       tags: [],
       color: 'slate',
@@ -2431,7 +2434,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       return;
     }
     const width = 200;
-    const height = 50;
+    const height = 40;
     let spawnX = 150;
     let spawnY = 150;
 
@@ -2448,7 +2451,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       y: spawnY,
       width,
       height,
-      title: 'Minimal Card',
+      title: '',
       content: '',
       tags: [],
       color: 'slate',
@@ -2464,7 +2467,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
         connectPorts: true
       },
       cardVariant: 'minimalCard',
-      nodeLayout: 'four-node'
+      nodeLayout: cardNodeLayout
     };
 
     startCardPlacement(newCard);
@@ -2484,7 +2487,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
     if (!hasBodyContent) {
       width = 200;
-      height = 50;
+      height = 40;
     }
 
     let spawnX = 150;
@@ -2508,7 +2511,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       y: spawnY,
       width,
       height,
-      title: !hasBodyContent ? 'Minimal Card' : 'Untitled Note',
+      title: !hasBodyContent ? '' : 'Untitled Note',
       content: '',
       tags: [],
       color: 'slate',
@@ -2734,46 +2737,6 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     // Check if card is being resized or layout toggled
     const cardToUpdate = cardsRef.current.find((c) => c.id === cardId);
     if (cardToUpdate) {
-      if ('width' in updatedFields || 'height' in updatedFields) {
-        const oldWidth = cardToUpdate.width || 250;
-        const oldHeight = cardToUpdate.height || 200;
-        const newWidth = updatedFields.width !== undefined ? updatedFields.width : oldWidth;
-        const newHeight = updatedFields.height !== undefined ? updatedFields.height : oldHeight;
-
-        if (oldWidth !== newWidth || oldHeight !== newHeight) {
-          setConnections((prevConns) =>
-            prevConns.map((conn) => {
-              let updated = false;
-              const newConn = { ...conn };
-
-              if (conn.fromCardId === cardId) {
-                if (conn.fromOffsetX !== undefined) {
-                  newConn.fromOffsetX = oldWidth > 0 ? (conn.fromOffsetX / oldWidth) * newWidth : conn.fromOffsetX;
-                  updated = true;
-                }
-                if (conn.fromOffsetY !== undefined) {
-                  newConn.fromOffsetY = oldHeight > 0 ? (conn.fromOffsetY / oldHeight) * newHeight : conn.fromOffsetY;
-                  updated = true;
-                }
-              }
-
-              if (conn.toCardId === cardId) {
-                if (conn.toOffsetX !== undefined) {
-                  newConn.toOffsetX = oldWidth > 0 ? (conn.toOffsetX / oldWidth) * newWidth : conn.toOffsetX;
-                  updated = true;
-                }
-                if (conn.toOffsetY !== undefined) {
-                  newConn.toOffsetY = oldHeight > 0 ? (conn.toOffsetY / oldHeight) * newHeight : conn.toOffsetY;
-                  updated = true;
-                }
-              }
-
-              return updated ? newConn : conn;
-            })
-          );
-        }
-      }
-
       if ('nodeLayout' in updatedFields) {
         const newLayout = updatedFields.nodeLayout;
         setConnections((prevConns) =>
@@ -2786,12 +2749,16 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                 const x = cardToUpdate.x + (conn.fromOffsetX || 0);
                 const y = cardToUpdate.y + (conn.fromOffsetY || 0);
                 newConn.fromSide = getLogicalSide(cardToUpdate, { x, y });
+                newConn.fromEdge = undefined;
+                newConn.fromRatio = undefined;
                 newConn.fromOffsetX = undefined;
                 newConn.fromOffsetY = undefined;
                 updated = true;
               } else if (newLayout === 'freestyle' && conn.fromSide !== 'freestyle') {
                 const coords = getPortCoords(cardToUpdate, conn.fromSide);
                 newConn.fromSide = 'freestyle';
+                newConn.fromEdge = conn.fromSide;
+                newConn.fromRatio = 0.5;
                 newConn.fromOffsetX = coords.x - cardToUpdate.x;
                 newConn.fromOffsetY = coords.y - cardToUpdate.y;
                 updated = true;
@@ -2803,12 +2770,16 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                 const x = cardToUpdate.x + (conn.toOffsetX || 0);
                 const y = cardToUpdate.y + (conn.toOffsetY || 0);
                 newConn.toSide = getLogicalSide(cardToUpdate, { x, y });
+                newConn.toEdge = undefined;
+                newConn.toRatio = undefined;
                 newConn.toOffsetX = undefined;
                 newConn.toOffsetY = undefined;
                 updated = true;
               } else if (newLayout === 'freestyle' && conn.toSide !== 'freestyle') {
                 const coords = getPortCoords(cardToUpdate, conn.toSide);
                 newConn.toSide = 'freestyle';
+                newConn.toEdge = conn.toSide;
+                newConn.toRatio = 0.5;
                 newConn.toOffsetX = coords.x - cardToUpdate.x;
                 newConn.toOffsetY = coords.y - cardToUpdate.y;
                 updated = true;
@@ -3037,7 +3008,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       const targetCard = cards.find((c) => c.id === cardId);
       if (targetCard) {
         const initialCanvasCoords = screenToCanvas(e.clientX, e.clientY);
-        const isTargetFreestyle = targetCard.nodeLayout === 'freestyle';
+        const isTargetFreestyle = targetCard.nodeLayout !== 'four-node';
         const targetSide = fromSideInput === 'connector' ? getClosestSide(targetCard, initialCanvasCoords) : (fromSideInput || 'left');
 
         const rectB = {
@@ -3051,13 +3022,23 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
           : getPortCoords(targetCard, targetSide);
         const toOffsetX = endPort.x - targetCard.x;
         const toOffsetY = endPort.y - targetCard.y;
+        const logicalEdgeB = getLogicalSide(targetCard, endPort);
+        const wB = targetCard.width || 250;
+        const hB = targetCard.height || 200;
+        const toRatio = (logicalEdgeB === 'top' || logicalEdgeB === 'bottom')
+          ? (wB > 0 ? Math.max(0, Math.min(1, toOffsetX / wB)) : 0.5)
+          : (hB > 0 ? Math.max(0, Math.min(1, toOffsetY / hB)) : 0.5);
 
         const newConnection = {
           id: Math.random().toString(36).substring(2, 9),
           fromCardId: activeDraft.fromCardId,
           fromSide: activeDraft.fromSide,
+          fromEdge: activeDraft.fromEdge,
+          fromRatio: activeDraft.fromRatio,
           toCardId: targetCard.id,
           toSide: targetSide,
+          toEdge: logicalEdgeB,
+          toRatio,
           fromOffsetX: activeDraft.fromOffsetX,
           fromOffsetY: activeDraft.fromOffsetY,
           toOffsetX,
@@ -3095,10 +3076,18 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     const startPort = fromSide === 'freestyle' ? getClosestPointOnRectBorder(initialCanvasCoords, rectA) : getPortCoords(card, fromSide);
     const fromOffsetX = startPort.x - card.x;
     const fromOffsetY = startPort.y - card.y;
+    const logicalEdgeA = getLogicalSide(card, startPort);
+    const wA = card.width || 250;
+    const hA = card.height || 200;
+    const fromRatio = (logicalEdgeA === 'top' || logicalEdgeA === 'bottom')
+      ? (wA > 0 ? Math.max(0, Math.min(1, fromOffsetX / wA)) : 0.5)
+      : (hA > 0 ? Math.max(0, Math.min(1, fromOffsetY / hA)) : 0.5);
 
     const initDraft = {
       fromCardId: cardId,
       fromSide,
+      fromEdge: logicalEdgeA,
+      fromRatio,
       start: startPort,
       current: startPort,
       waypoints: [],
@@ -3139,7 +3128,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
       });
 
       if (targetCard) {
-        const isTargetFreestyle = targetCard.nodeLayout === 'freestyle';
+        const isTargetFreestyle = targetCard.nodeLayout !== 'four-node';
         const targetSide = isTargetFreestyle ? 'freestyle' : getClosestSide(targetCard, canvasCoords);
 
         const rectB = {
@@ -3154,6 +3143,12 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
         const toOffsetX = endPort.x - targetCard.x;
         const toOffsetY = endPort.y - targetCard.y;
+        const logicalEdgeB = getLogicalSide(targetCard, endPort);
+        const wB = targetCard.width || 250;
+        const hB = targetCard.height || 200;
+        const toRatio = (logicalEdgeB === 'top' || logicalEdgeB === 'bottom')
+          ? (wB > 0 ? Math.max(0, Math.min(1, toOffsetX / wB)) : 0.5)
+          : (hB > 0 ? Math.max(0, Math.min(1, toOffsetY / hB)) : 0.5);
 
         const exists = !isTargetFreestyle && fromSide !== 'freestyle' && connections.some(
           (conn) =>
@@ -3163,12 +3158,18 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
         if (!exists) {
           const currentWaypoints = draftConnectionRef.current?.waypoints || [];
+          const activeFromEdge = draftConnectionRef.current?.fromEdge || logicalEdgeA;
+          const activeFromRatio = draftConnectionRef.current?.fromRatio !== undefined ? draftConnectionRef.current?.fromRatio : fromRatio;
           const newConnection = {
             id: Math.random().toString(36).substring(2, 9),
             fromCardId: cardId,
             fromSide: fromSide,
+            fromEdge: activeFromEdge,
+            fromRatio: activeFromRatio,
             toCardId: targetCard.id,
             toSide: targetSide,
+            toEdge: logicalEdgeB,
+            toRatio,
             fromOffsetX,
             fromOffsetY,
             toOffsetX,
@@ -3209,7 +3210,43 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     showToast('Connection line removed.');
   };
 
-  // Helper coordinate getters
+  const accentCardColors = {
+    slate: '#64748b',
+    indigo: '#6366f1',
+    cyan: '#06b6d4',
+    emerald: '#10b981',
+    amber: '#f59e0b',
+    rose: '#f43f5e',
+  };
+
+  const getColorForCard = (c) => {
+    if (!c) return '#6366f1';
+    if (c.badge && c.badge.color) return c.badge.color;
+    if (c.isStartNode) return '#881337';
+    if (c.color && c.color.startsWith('#')) return c.color;
+    return accentCardColors[c.color] || '#6366f1';
+  };
+
+  const getGlowFilter = (color) => {
+    if (!color || typeof color !== 'string' || color.startsWith('url')) {
+      return 'drop-shadow(0 0 5px rgba(99, 102, 241, 0.35))';
+    }
+    if (color.startsWith('#')) {
+      let hex = color.slice(1);
+      if (hex.length === 3) {
+        hex = hex.split('').map((ch) => ch + ch).join('');
+      }
+      if (hex.length === 6) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return `drop-shadow(0 0 6px rgba(${r}, ${g}, ${b}, 0.5))`;
+      }
+    }
+    return 'drop-shadow(0 0 5px rgba(99, 102, 241, 0.35))';
+  };
+
+  // Helper coordinate getters - flush to card border (offset = 0)
   const getPortCoords = (card, side) => {
     const w = card.width || 250;
     const h = card.height || 200;
@@ -3262,6 +3299,76 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
     });
 
     return bestSide;
+  };
+
+  // Mathematically deterministic endpoint calculator that locks flush to card border
+  const getConnectionEndpoint = (card, side, offsetX, offsetY, edge, ratio) => {
+    if (!card) return { x: 0, y: 0 };
+    const w = card.width || 250;
+    const h = card.height || 200;
+
+    // 1. Fixed 4-Node Port
+    if (side && side !== 'freestyle') {
+      switch (side) {
+        case 'top': return { x: card.x + w / 2, y: card.y };
+        case 'right': return { x: card.x + w, y: card.y + h / 2 };
+        case 'bottom': return { x: card.x + w / 2, y: card.y + h };
+        case 'left': return { x: card.x, y: card.y + h / 2 };
+        default: return { x: card.x + w / 2, y: card.y + h / 2 };
+      }
+    }
+
+    // 2. Freestyle Connection: Determine which edge and ratio along that edge
+    let activeEdge = edge;
+    let activeRatio = ratio;
+
+    // Fallback if edge or ratio wasn't saved on connection
+    if (!activeEdge || activeRatio === undefined) {
+      const rawX = offsetX !== undefined ? offsetX : w / 2;
+      const rawY = offsetY !== undefined ? offsetY : h / 2;
+      const distL = Math.abs(rawX);
+      const distR = Math.abs(rawX - w);
+      const distT = Math.abs(rawY);
+      const distB = Math.abs(rawY - h);
+      const minDist = Math.min(distL, distR, distT, distB);
+
+      if (minDist === distT) {
+        activeEdge = 'top';
+        activeRatio = w > 0 ? Math.max(0, Math.min(1, rawX / w)) : 0.5;
+      } else if (minDist === distB) {
+        activeEdge = 'bottom';
+        activeRatio = w > 0 ? Math.max(0, Math.min(1, rawX / w)) : 0.5;
+      } else if (minDist === distL) {
+        activeEdge = 'left';
+        activeRatio = h > 0 ? Math.max(0, Math.min(1, rawY / h)) : 0.5;
+      } else {
+        activeEdge = 'right';
+        activeRatio = h > 0 ? Math.max(0, Math.min(1, rawY / h)) : 0.5;
+      }
+    }
+
+    const cornerPadX = Math.min(22, w * 0.25);
+    const cornerPadY = Math.min(22, h * 0.25);
+
+    switch (activeEdge) {
+      case 'top': {
+        const clampedX = Math.max(cornerPadX, Math.min(w - cornerPadX, activeRatio * w));
+        return { x: card.x + clampedX, y: card.y };
+      }
+      case 'bottom': {
+        const clampedX = Math.max(cornerPadX, Math.min(w - cornerPadX, activeRatio * w));
+        return { x: card.x + clampedX, y: card.y + h };
+      }
+      case 'left': {
+        const clampedY = Math.max(cornerPadY, Math.min(h - cornerPadY, activeRatio * h));
+        return { x: card.x, y: card.y + clampedY };
+      }
+      case 'right':
+      default: {
+        const clampedY = Math.max(cornerPadY, Math.min(h - cornerPadY, activeRatio * h));
+        return { x: card.x + w, y: card.y + clampedY };
+      }
+    }
   };
 
   // Smooth Spline Path generator: curved path through waypoints
@@ -4474,40 +4581,97 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
             {/* SVG GRADIENTS AND MARKERS DEFINITIONS */}
             <defs>
+              {/* Live Draft Connection Marker and Gradient Definition */}
+              {draftConnection && (() => {
+                const draftCardA = cards.find((c) => c.id === draftConnection.fromCardId);
+                const draftTargetCard = cards.find((c) => {
+                  if (c.id === draftConnection.fromCardId || c.type === 'group') return false;
+                  const w = c.width || 250;
+                  const h = c.height || 200;
+                  return (
+                    draftConnection.current.x >= c.x - 20 &&
+                    draftConnection.current.x <= c.x + w + 20 &&
+                    draftConnection.current.y >= c.y - 20 &&
+                    draftConnection.current.y <= c.y + h + 20
+                  );
+                });
+
+                const colorA = getColorForCard(draftCardA);
+                const colorB = draftTargetCard ? getColorForCard(draftTargetCard) : colorA;
+
+                let draftEnd = draftConnection.current;
+                if (draftTargetCard) {
+                  const isTargetFreestyle = draftTargetCard.nodeLayout !== 'four-node';
+                  const targetSide = isTargetFreestyle ? 'freestyle' : getClosestSide(draftTargetCard, draftConnection.current);
+                  if (isTargetFreestyle) {
+                    const rectB = {
+                      left: draftTargetCard.x,
+                      top: draftTargetCard.y,
+                      right: draftTargetCard.x + (draftTargetCard.width || 250),
+                      bottom: draftTargetCard.y + (draftTargetCard.height || 200)
+                    };
+                    draftEnd = getClosestPointOnRectBorder(draftConnection.current, rectB);
+                  } else {
+                    draftEnd = getPortCoords(draftTargetCard, targetSide);
+                  }
+                }
+
+                const markerColor = (activeConnectorColor && activeConnectorColor !== 'auto')
+                  ? activeConnectorColor
+                  : (draftTargetCard ? colorB : colorA);
+                const draftThickness = activeConnectorThickness !== undefined ? activeConnectorThickness : 2.5;
+
+                return (
+                  <React.Fragment key="defs-draft">
+                    <linearGradient
+                      id="grad-draft"
+                      gradientUnits="userSpaceOnUse"
+                      x1={draftConnection.start.x}
+                      y1={draftConnection.start.y}
+                      x2={draftEnd.x}
+                      y2={draftEnd.y}
+                    >
+                      <stop offset="0%" stopColor={colorA} stopOpacity="0.9" />
+                      <stop offset="100%" stopColor={colorB} stopOpacity="0.9" />
+                    </linearGradient>
+
+                    <marker
+                      id="arrow-draft"
+                      viewBox="0 0 16 16"
+                      refX="12"
+                      refY="8"
+                      markerWidth="16"
+                      markerHeight="16"
+                      markerUnits="userSpaceOnUse"
+                      orient="auto-start-reverse"
+                    >
+                      <path
+                        d="M 5 3 L 12 8 L 5 13"
+                        fill="none"
+                        stroke={markerColor}
+                        strokeWidth={draftThickness}
+                        strokeLinecap="round"
+                        strokeLinejoin="miter"
+                        strokeMiterlimit="5"
+                      />
+                    </marker>
+                  </React.Fragment>
+                );
+              })()}
+
               {connections.map((conn) => {
                 const cardA = cards.find((c) => c.id === conn.fromCardId);
                 const cardB = cards.find((c) => c.id === conn.toCardId);
                 if (!cardA || !cardB) return null;
 
-                const accentColors = {
-                  slate: '#64748b',
-                  indigo: '#6366f1',
-                  cyan: '#06b6d4',
-                  emerald: '#10b981',
-                  amber: '#f59e0b',
-                  rose: '#f43f5e',
-                };
-
-                const getColorForCard = (c) => {
-                  if (c.badge && c.badge.color) return c.badge.color;
-                  if (c.isStartNode) return '#881337';
-                  if (c.color && c.color.startsWith('#')) return c.color;
-                  return accentColors[c.color] || '#6366f1';
-                };
-
                 const colorA = getColorForCard(cardA);
                 const colorB = getColorForCard(cardB);
 
-                const fromSide = conn.fromSide || 'right';
-                const toSide = conn.toSide || 'left';
-                const from = (conn.fromOffsetX !== undefined && conn.fromOffsetY !== undefined)
-                  ? { x: cardA.x + conn.fromOffsetX, y: cardA.y + conn.fromOffsetY }
-                  : getPortCoords(cardA, fromSide);
-                const to = (conn.toOffsetX !== undefined && conn.toOffsetY !== undefined)
-                  ? { x: cardB.x + conn.toOffsetX, y: cardB.y + conn.toOffsetY }
-                  : getPortCoords(cardB, toSide);
+                const from = getConnectionEndpoint(cardA, conn.fromSide, conn.fromOffsetX, conn.fromOffsetY, conn.fromEdge, conn.fromRatio);
+                const to = getConnectionEndpoint(cardB, conn.toSide, conn.toOffsetX, conn.toOffsetY, conn.toEdge, conn.toRatio);
 
                 const markerColor = conn.color && conn.color !== 'auto' ? conn.color : colorB;
+                const connThickness = conn.thickness !== undefined ? conn.thickness : 2.5;
 
                 return (
                   <React.Fragment key={`defs-${conn.id}`}>
@@ -4525,14 +4689,44 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
                     <marker
                       id={`arrow-${conn.id}`}
-                      viewBox="0 0 10 10"
-                      refX="7"
-                      refY="5"
-                      markerWidth="6"
-                      markerHeight="6"
+                      viewBox="0 0 16 16"
+                      refX="12"
+                      refY="8"
+                      markerWidth="16"
+                      markerHeight="16"
+                      markerUnits="userSpaceOnUse"
                       orient="auto-start-reverse"
                     >
-                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill={markerColor} />
+                      <path
+                        d="M 5 3 L 12 8 L 5 13"
+                        fill="none"
+                        stroke={markerColor}
+                        strokeWidth={connThickness}
+                        strokeLinecap="round"
+                        strokeLinejoin="miter"
+                        strokeMiterlimit="5"
+                      />
+                    </marker>
+
+                    <marker
+                      id={`arrow-hover-${conn.id}`}
+                      viewBox="0 0 16 16"
+                      refX="12"
+                      refY="8"
+                      markerWidth="16"
+                      markerHeight="16"
+                      markerUnits="userSpaceOnUse"
+                      orient="auto-start-reverse"
+                    >
+                      <path
+                        d="M 5 3 L 12 8 L 5 13"
+                        fill="none"
+                        stroke="#38bdf8"
+                        strokeWidth={connThickness}
+                        strokeLinecap="round"
+                        strokeLinejoin="miter"
+                        strokeMiterlimit="5"
+                      />
                     </marker>
                   </React.Fragment>
                 );
@@ -4548,12 +4742,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               const fromSide = conn.fromSide || 'right';
               const toSide = conn.toSide || 'left';
 
-              const from = (conn.fromOffsetX !== undefined && conn.fromOffsetY !== undefined)
-                ? { x: cardA.x + conn.fromOffsetX, y: cardA.y + conn.fromOffsetY }
-                : getPortCoords(cardA, fromSide);
-              const to = (conn.toOffsetX !== undefined && conn.toOffsetY !== undefined)
-                ? { x: cardB.x + conn.toOffsetX, y: cardB.y + conn.toOffsetY }
-                : getPortCoords(cardB, toSide);
+              const from = getConnectionEndpoint(cardA, conn.fromSide, conn.fromOffsetX, conn.fromOffsetY, conn.fromEdge, conn.fromRatio);
+              const to = getConnectionEndpoint(cardB, conn.toSide, conn.toOffsetX, conn.toOffsetY, conn.toEdge, conn.toRatio);
 
               const logicalSideA = fromSide === 'freestyle' ? getLogicalSide(cardA, from) : fromSide;
               const logicalSideB = toSide === 'freestyle' ? getLogicalSide(cardB, to) : toSide;
@@ -4561,6 +4751,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               const connStyle = conn.style || 'default';
               const connAnim = conn.animation || 'none';
               const connThickness = conn.thickness !== undefined ? conn.thickness : 2.5;
+
+              const hasArrow = (connStyle === 'arrow' || connStyle === 'smooth-90' || (conn.waypoints && conn.waypoints.length > 0));
 
               const pathProps = getPathProperties(from, to, logicalSideA, logicalSideB, connStyle, cardA, cardB, conn.waypoints);
 
@@ -4648,6 +4840,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                     strokeWidth={connThickness}
                     className={pathClass1}
                     stroke={strokeColor}
+                    strokeLinecap={hasArrow ? 'butt' : 'round'}
                     style={{
                       strokeWidth: `${connThickness}px`,
                       cursor: isConnDimmed ? 'default' : 'pointer',
@@ -4664,6 +4857,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                     strokeWidth={connThickness}
                     className={`${pathClass1} conn-line-hover-overlay`}
                     stroke="#38bdf8"
+                    strokeLinecap={hasArrow ? 'butt' : 'round'}
                     style={{
                       strokeWidth: `${connThickness}px`,
                       cursor: isConnDimmed ? 'default' : 'pointer',
@@ -4672,7 +4866,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                       transition: 'opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
                       filter: 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.6))'
                     }}
-                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90' || conn.waypoints?.length > 0) ? `url(#arrow-${conn.id})` : undefined}
+                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90' || conn.waypoints?.length > 0) ? `url(#arrow-hover-${conn.id})` : undefined}
                   />
 
                   {/* Hit Area Path for mouse events */}
@@ -4707,7 +4901,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
               let targetSide = 'center';
 
               if (dragTargetCard) {
-                const isTargetFreestyle = dragTargetCard.nodeLayout === 'freestyle';
+                const isTargetFreestyle = dragTargetCard.nodeLayout !== 'four-node';
                 targetSide = isTargetFreestyle ? 'freestyle' : getClosestSide(dragTargetCard, draftConnection.current);
                 if (isTargetFreestyle) {
                   const rectB = {
@@ -4722,6 +4916,12 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                 }
               }
 
+              const connStyle = activeConnectorStyle || 'default';
+              const connAnim = activeConnectorAnimation || 'none';
+              const connThickness = activeConnectorThickness !== undefined ? activeConnectorThickness : 2.5;
+
+              const hasDraftArrow = (connStyle === 'arrow' || connStyle === 'smooth-90' || (draftConnection.waypoints && draftConnection.waypoints.length > 0));
+
               const draftPathProps = getPathProperties(
                 draftConnection.start,
                 draftEnd,
@@ -4732,6 +4932,39 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                 dragTargetCard,
                 draftConnection.waypoints
               );
+
+              let draftClass = 'connection-line connection-draft-live';
+
+              if (connStyle === 'dotted') {
+                if (connAnim === 'flow-forward' || connAnim === 'flow-backward') {
+                  draftClass += ' conn-anim-dotted-flow';
+                } else {
+                  draftClass += ' conn-style-dotted';
+                }
+              } else if (connStyle === 'dashed') {
+                draftClass += ' conn-style-dashed';
+                if (connAnim === 'flow-forward') draftClass += ' conn-anim-flow-forward';
+                else if (connAnim === 'flow-backward') draftClass += ' conn-anim-flow-backward';
+              } else {
+                if (connAnim === 'flow-forward') draftClass += ' conn-anim-flow-forward';
+                else if (connAnim === 'flow-backward') draftClass += ' conn-anim-flow-backward';
+              }
+
+              const sourceCard = cards.find((c) => c.id === draftConnection.fromCardId);
+              const colorA = getColorForCard(sourceCard);
+              const colorB = dragTargetCard ? getColorForCard(dragTargetCard) : colorA;
+
+              const draftStrokeColor = (activeConnectorColor && activeConnectorColor !== 'auto')
+                ? activeConnectorColor
+                : (dragTargetCard ? 'url(#grad-draft)' : colorA);
+
+              const draftMarkerColor = (activeConnectorColor && activeConnectorColor !== 'auto')
+                ? activeConnectorColor
+                : (dragTargetCard ? colorB : colorA);
+
+              const glowColor = (activeConnectorColor && activeConnectorColor !== 'auto')
+                ? activeConnectorColor
+                : colorA;
 
               return (
                 <React.Fragment>
@@ -4747,12 +4980,35 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                       style={{ pointerEvents: 'none' }}
                     />
                   ))}
+
+                  {/* Origin anchor dot at connection start */}
+                  <circle
+                    cx={draftConnection.start.x}
+                    cy={draftConnection.start.y}
+                    r={Math.max(3.5, connThickness * 1.1)}
+                    fill={draftMarkerColor}
+                    style={{
+                      pointerEvents: 'none',
+                      filter: getGlowFilter(draftMarkerColor)
+                    }}
+                  />
+
+                  {/* Live Draft Connection Path matching exact style, thickness, animation and color */}
                   <path
                     d={draftPathProps.pathStr}
-                    className="connection-draft"
-                    strokeWidth={activeConnectorThickness}
-                    style={activeConnectorColor !== 'auto' ? { stroke: activeConnectorColor } : {}}
+                    fill="none"
+                    className={draftClass}
+                    stroke={draftStrokeColor}
+                    strokeWidth={connThickness}
+                    strokeLinecap={hasDraftArrow ? 'butt' : 'round'}
+                    style={{
+                      strokeWidth: `${connThickness}px`,
+                      pointerEvents: 'none',
+                      filter: getGlowFilter(glowColor),
+                    }}
+                    markerEnd={(connStyle === 'arrow' || connStyle === 'smooth-90' || (draftConnection.waypoints?.length > 0)) ? 'url(#arrow-draft)' : undefined}
                   />
+
                   {/* Waypoint handle dots for draft connection */}
                   {draftConnection.waypoints && draftConnection.waypoints.map((wp, wpIdx) => (
                     <g key={`draft-wp-${wpIdx}`}>
@@ -4773,24 +5029,26 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                       />
                     </g>
                   ))}
+
+                  {/* Target Snap Indicator */}
                   {dragTargetCard && (
-                    <g className="snap-indicator">
+                    <g className="snap-indicator" style={{ pointerEvents: 'none' }}>
                       <circle
                         cx={draftEnd.x}
                         cy={draftEnd.y}
                         r="11"
                         fill="none"
-                        stroke="var(--accent-cyan)"
+                        stroke={draftMarkerColor}
                         strokeWidth="1.5"
                         strokeDasharray="3 3"
-                        style={{ filter: 'drop-shadow(0 0 5px rgba(6, 182, 212, 0.6))' }}
+                        style={{ filter: getGlowFilter(draftMarkerColor) }}
                       />
                       <circle
                         cx={draftEnd.x}
                         cy={draftEnd.y}
                         r="4.5"
-                        fill="var(--accent-cyan)"
-                        style={{ filter: 'drop-shadow(0 0 6px rgba(6, 182, 212, 0.8))' }}
+                        fill={draftMarkerColor}
+                        style={{ filter: getGlowFilter(draftMarkerColor) }}
                       />
                     </g>
                   )}
@@ -4843,6 +5101,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                   zoom={zoom}
                   onStartConnection={handleStartConnection}
                   toolMode={isViewOnly ? 'select' : toolMode}
+                  isConnecting={!!draftConnection}
                   isViewOnly={isViewOnly}
                   isBlinking={blinkingCardId === card.id}
                   onDoubleClickFocus={handleFocusOnCard}
@@ -4981,12 +5240,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
                 const fromSide = conn.fromSide || 'right';
                 const toSide = conn.toSide || 'left';
-                const from = (conn.fromOffsetX !== undefined && conn.fromOffsetY !== undefined)
-                  ? { x: cardA.x + conn.fromOffsetX, y: cardA.y + conn.fromOffsetY }
-                  : getPortCoords(cardA, fromSide);
-                const to = (conn.toOffsetX !== undefined && conn.toOffsetY !== undefined)
-                  ? { x: cardB.x + conn.toOffsetX, y: cardB.y + conn.toOffsetY }
-                  : getPortCoords(cardB, toSide);
+                const from = getConnectionEndpoint(cardA, conn.fromSide, conn.fromOffsetX, conn.fromOffsetY, conn.fromEdge, conn.fromRatio);
+                const to = getConnectionEndpoint(cardB, conn.toSide, conn.toOffsetX, conn.toOffsetY, conn.toEdge, conn.toRatio);
 
                 const logicalSideA = fromSide === 'freestyle' ? getLogicalSide(cardA, from) : fromSide;
                 const logicalSideB = toSide === 'freestyle' ? getLogicalSide(cardB, to) : toSide;
@@ -5741,7 +5996,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                   );
                 }
 
-                const isHeading = card.title === 'Heading' || card.title === 'Minimal Card' || (!card.features?.notes && !card.features?.sketch && !card.features?.attachments && !card.features?.tags);
+                const isHeading = card.cardVariant === 'minimalCard' || card.title === 'Heading' || card.title === 'Minimal Card' || (!card.features?.notes && !card.features?.sketch && !card.features?.attachments && !card.features?.tags);
                 return (
                   <>
                     {!isViewOnly && (
@@ -5991,9 +6246,15 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                   <button
                     className="context-menu-item"
                     onClick={() => {
-                      const fileInput = document.querySelector('input[type="file"]');
-                      if (fileInput) fileInput.click();
+                      if (contextMenu) {
+                        lastPointerPosRef.current = { x: contextMenu.x, y: contextMenu.y };
+                      }
                       setContextMenu(null);
+                      if (imageFileInputRef.current) {
+                        imageFileInputRef.current.click();
+                      } else {
+                        handleAddCardDirect('image');
+                      }
                     }}
                   >
                     <ImageIcon size={13} color="var(--accent-emerald)" />
@@ -6040,8 +6301,22 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
 
 
 
-    </div>
-  );
+        {/* Hidden File Input for Image Card Uploads */}
+        <input
+          ref={imageFileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleUploadImage(file);
+            }
+            e.target.value = '';
+          }}
+        />
+      </div>
+    );
 }
 
 export default FreestyleCanvas;
