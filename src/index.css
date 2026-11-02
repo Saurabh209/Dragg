@@ -4961,8 +4961,11 @@ html, body, #root, .board-workspace-wrapper, .dashboard-container {
   100% { transform: rotate(360deg); }
 }
 
-
-
-
-
-
+/* Ghost Card Placement Preview (No box-shadow or drop-shadow) */
+.ghost-card-placement-preview,
+.ghost-card-placement-preview *,
+.ghost-card-placement-preview .card-wrapper,
+.ghost-card-placement-preview .card-content-container {
+  box-shadow: none !important;
+  filter: none !important;
+}

@@ -397,7 +397,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
   const contextMenuRef = useRef(null);
   const imageFileInputRef = useRef(null);
 
-  // Ghost Placement Shadow state for cursor-attached card creation
+  // Ghost Placement state for cursor-attached card creation
   const [pendingPlacementCard, setPendingPlacementCard] = useState(null);
   const [placementPos, setPlacementPos] = useState({ x: 150, y: 150 });
   const lastPointerPosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -5129,7 +5129,8 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                   pointerEvents: 'none',
                   zIndex: 99999,
                   opacity: 0.78,
-                  filter: 'drop-shadow(0 14px 36px rgba(210, 215, 225, 0.25))',
+                  boxShadow: 'none',
+                  filter: 'none',
                   transform: 'scale(1.01)'
                 }}
               >
@@ -5160,7 +5161,7 @@ function FreestyleCanvas({ boardId, boardPassword, onUpdatePassword = () => {}, 
                         display: 'flex',
                         alignItems: 'center',
                         gap: '4px',
-                        boxShadow: '0 4px 12px rgba(210, 215, 225, 0.3)'
+                        boxShadow: 'none'
                       }}
                     >
                       <span>Grabbed ({pendingPlacementCard.cards.length} Items) - Click to Place</span>
